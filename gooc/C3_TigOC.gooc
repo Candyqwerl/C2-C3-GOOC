@@ -236,6 +236,7 @@ state Taz_Intro_Trans { // S1
         changestate(Taz_Jump, 0)
     }
 }
+
 state Taz_Jump { // S2
     stateflag 0x40040C9
     statusc 0x12
@@ -338,6 +339,7 @@ state Taz_Final_Jump { // S3
         changestate(Taz_Trident_Jammed)
     }
 }
+
 state Taz_Retreat { // S4
     stateflag 0x4004085
     statusc 0x12
@@ -448,6 +450,7 @@ state Taz_Taunt { // S6
         }
     }
 }
+
 state Taz_Attacked { // S7
     stateflag 0x3
     code() {
@@ -563,6 +566,7 @@ state Taz_Attacked { // S7
         }
     }
 }
+
 state Taz_Defeated { // S8
     stateflag 0x40040A1
     statusc 0x80022
@@ -636,6 +640,7 @@ state Taz_Defeated { // S8
         }
     }
 }
+
 state Taz_Kill_Player { // S9
     code() {
         SetColosseumVoice(12, 0x3FFF)
@@ -657,6 +662,7 @@ state Taz_Kill_Player { // S9
         changestate(Taz_Jump, 0)
     }
 }
+
 state Lion_Generator { // S10
     statusc 0
     code() {
@@ -667,6 +673,7 @@ state Lion_Generator { // S10
         changestate(Lion_Generator_Sleep)
     }
 }
+
 state Lion_Generator_Active { // S11
     statusc 0
     code() {
@@ -724,6 +731,7 @@ state Lion_Generator_Active { // S11
         } while (1)
     }
 }
+
 state Lion_Generator_Sleep { // S12
     statusc 0
     code() {
@@ -802,6 +810,7 @@ state Lion_Stampede  { // S13
         z += 0.48m
     }
 }
+
 state Lion_Eat { // S14
     statusc 0
     code(LionCanEat) {
@@ -828,6 +837,7 @@ state Lion_Eat { // S14
         accevcstate(Lion_Fling, e == EventSpinHit || e == EventSlideHit || e == EventHitInvincible || e == EventFling)
     }
 }
+
 state Lion_Fling { // S15
     stateflag 0x30
     statusc 0x32
@@ -998,4 +1008,5 @@ state Caesar_Cortex_Head { // S22
     trans {
         roty = atan2(player -> trans)
     }
+
 }
