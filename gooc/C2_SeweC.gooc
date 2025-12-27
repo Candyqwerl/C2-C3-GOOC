@@ -12,8 +12,6 @@
 #anim FAN_BLADE_B1    [Fa3aV] 1 1
 #anim FAN_BLADE_B2    [Fa5aV] 1 1
 
-var mem1, FanBladeCount, BarrelAnchorPoint, BarrelArcRadius, BarrelRollSpeed, BarrelCycleOffs, BarrelAngle, BarrelRollWidth, BarrelZindexRightRoll, BarrelZindexLeftRoll, BarrelZindexThresh
-
 #spawn S_DOOR         Door_Spawn
 #spawn S_FAN          Fan_Spawn
 #spawn S_FAN_FAST     Fan_Spawn
@@ -24,6 +22,8 @@ var mem1, FanBladeCount, BarrelAnchorPoint, BarrelArcRadius, BarrelRollSpeed, Ba
 #spawn S__7           Unused
 #spawn S_EEL          Electric_Eel
 #spawn S_BARREL       Barrel_Init
+
+var mem1, FanBladeCount, BarrelAnchorPoint, BarrelArcRadius, BarrelRollSpeed, BarrelCycleOffs, BarrelAngle, BarrelRollWidth, BarrelZindexRightRoll, BarrelZindexLeftRoll, BarrelZindexThresh
 
 state Door_Spawn { // S0
     statusc 0x22
@@ -362,4 +362,5 @@ state Electric_Eel { // S10
         }
     }
 }
+
 
