@@ -232,6 +232,7 @@ state Sarcophagass_Break { // S2
         changestate(Mummy_Walk_Start)
     }
 }
+
 state Sarcophagass_Broken { // S3
     stateflag 0x1
     statusc 0
@@ -244,6 +245,7 @@ state Sarcophagass_Broken { // S3
         }
     }
 }
+
 state Mummy_Walk_Start { // S4
     stateflag 0x1
     statusc 0
@@ -300,6 +302,7 @@ state Mummy_Walk_Start { // S4
         MummyFootstepSound()
     }
 }
+
 state Mummy_Walk { // S5
     stateflag 0x1
     statusc 0
@@ -575,6 +578,7 @@ state Mummy_Spawn { // S7
         playframes(SARCOPHAGASS_BREAK, 0.0, 11.0)
     }
 }
+
 state Sarcophagass_Fling { // S8
     stateflag 0x30
     statusc 0x32
@@ -626,6 +630,7 @@ state Sarcophagass_Fling { // S8
         }
     }
 }
+
 state Sarcophagass_Crush { // S9
     stateflag 0x23
     statusc 0x32
@@ -666,6 +671,7 @@ state Sarcophagass_Crush { // S9
         }
     }
 }
+
 state Mummy_Grab { // S10
     stateflag 0x23
     statusc 0
@@ -693,6 +699,7 @@ state Mummy_Grab { // S10
         accevcstate(Sarcophagass_Squash, e == EventHitInvincible || e == EventHit)
     }
 }
+
 state Sarcophagass_Squash { // S11
     stateflag 0x23
     statusc 0x32
@@ -718,6 +725,7 @@ sub SetParticleColor_Sarcophagass_Squash() {
         SetColor1(0xE7, 0x85, 0x81)
     }
 }
+
 state Kill_Entity { // S12
     stateflag 0x1
     statusc 0
@@ -749,4 +757,5 @@ sub S__5() { // 380 state 5
         }
     } while (1)
 }
+
 
