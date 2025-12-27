@@ -76,7 +76,7 @@ sub sub_15() {
     }
 }
 
-sub sub_37() __trans{
+sub sub_37() {
     getvert(vvec, self, 0)
     vecx = (abs(vecx - x) + -3.0m)
     
@@ -949,3 +949,4 @@ FanCurrent vars:
 PlayerInCurrent        = mem2
 CurrentPathMiddle      = mem3
 */
+
