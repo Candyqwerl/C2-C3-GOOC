@@ -215,14 +215,14 @@ state Scuba_Tank_2 { // S3
 state Paddle_Init { // S4
     stateflag 0x4004081
     statusc 0
-    code(CycleLen, CycleOffs, RotationDir, Invert, SafeZones) {
-        if (var QuadrantConfig = SafeZones; !QuadrantConfig) {
+    code(CycleLen, CycleOffs, RotationDir, Invert, Config) {
+        if (var PipeConfig = Config; !PipeConfig) {
             spawn(AtoOC, S_SENTINEL, 1, 4.0m, 180deg, 270deg)
         }
-        else if (QuadrantConfig == 1) {
+        else if (PipeConfig == 1) {
             spawn(AtoOC, S_SENTINEL, 1, 4.0m, 180deg, 0deg)
         }
-        else if (QuadrantConfig == 2) {
+        else if (PipeConfig == 2) {
             spawn(AtoOC, S_SENTINEL, 1, 4.0m, 270deg, 0deg)
         }
         PaddleCycleLen = ((CycleLen * 80.0s) / 120.0s)
@@ -864,7 +864,7 @@ state Atlantis_Creature_Kill {
 
 state Paddle_Sentinel {
     statusc 0x32
-    code(RadiusMax, SafeZoneA, SafeZoneB) {
+    code(Radius, PipeEntrance, PipeExit) {
         v0 = false
         do {
             z = player -> z
@@ -873,27 +873,27 @@ state Paddle_Sentinel {
             vecz = player -> z
             stalltime = distance(vec, self, DIST_EXACT)
             field_63 = atan((player -> y + 0.4m) - y, (player -> x - x))
-            field_61 = (((SafeZoneA == -1) || (abs(degdist(field_63, SafeZoneA)) > 12deg)) && ((SafeZoneB == -1) || (abs(degdist(field_63, SafeZoneB)) > 12deg)))
-            if (stalltime < RadiusMax) {
+            field_61 = (((PipeEntrance == -1) || (abs(degdist(field_63, PipeEntrance)) > 12deg)) && ((PipeExit == -1) || (abs(degdist(field_63, PipeExit)) > 12deg)))
+            if (stalltime < Radius) {
                 v0 = true
             }
             else if (v0 && field_61) {
-                player -> x = x + (((((player -> x - x) >> 8) * (RadiusMax >> 8)) / (stalltime >> 8)) << 8)
-                player -> y = y + (((((player -> y - y) >> 8) * (RadiusMax >> 8)) / (stalltime >> 8)) << 8)
+                player -> x = x + (((((player -> x - x) >> 8) * (Radius >> 8)) / (stalltime >> 8)) << 8)
+                player -> y = y + (((((player -> y - y) >> 8) * (Radius >> 8)) / (stalltime >> 8)) << 8)
             }
-            else if ((stalltime < RadiusMax + 1m) && field_61) {
+            else if ((stalltime < Radius + 1m) && field_61) {
                 field_62 = -1
-                if (abs(degdist(field_63, SafeZoneA + -12deg)) < 20deg) {
-                    field_62 = SafeZoneA + -11deg
+                if (abs(degdist(field_63, PipeEntrance + -12deg)) < 20deg) {
+                    field_62 = PipeEntrance + -11deg
                 }
-                else if (abs(degdist(field_63, SafeZoneA + 12deg)) < 20deg) {
-                    field_62 = SafeZoneA + 11deg
+                else if (abs(degdist(field_63, PipeEntrance + 12deg)) < 20deg) {
+                    field_62 = PipeEntrance + 11deg
                 }
-                else if (abs(degdist(field_63, SafeZoneB + -12deg)) < 20deg) {
-                    field_62 = SafeZoneB + -11deg
+                else if (abs(degdist(field_63, PipeExit + -12deg)) < 20deg) {
+                    field_62 = PipeExit + -11deg
                 }
-                else if (abs(degdist(field_63, SafeZoneB + 12deg)) < 20deg) {
-                    field_62 = SafeZoneB + 11deg
+                else if (abs(degdist(field_63, PipeExit + 12deg)) < 20deg) {
+                    field_62 = PipeExit + 11deg
                 }
                 unless(field_62 == -1) {
                     player -> x = x + ((stalltime * cos(field_62)) >> 12) player -> y = y + (((stalltime * sin(field_62)) >> 12) + -0.4m)
@@ -949,4 +949,5 @@ FanCurrent vars:
 PlayerInCurrent        = mem2
 CurrentPathMiddle      = mem3
 */
+
 
