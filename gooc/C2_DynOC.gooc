@@ -552,10 +552,10 @@ state Robot_Walker { // S14
     }
     event(e, a) {
         if (interrupter == player) {
-            rejev(e == EventSpinHit || e == EventJumpedOn || e == EventSlamHit)
-        }
-        else {
-            sendevent(Event24, interrupter, 100.0)
+            if (e == EventSpinHit || e == EventJumpedOn || e == EventSlamHit) {
+                rejev()
+                sendevent(Event24, interrupter, 100.0)
+            }
         }
         accevcstate(RobotWalker_Fling, e == EventSlideHit || e == EventHitInvincible || e == EventFling)
     }
@@ -626,11 +626,13 @@ state RobotWalker_Fling { // S15
             if (eventaccepted) {
                 health += 1.0
             }
-            vecy = y - 1m
-            do {
-                y = vecy + 1m
-                projectzoneshadow(var0)
-            } until(!eventaccepted || y >= vecy + 1m)
+            unless(ZONEFLAGS & 0x800) {
+                vecy = y - 1m
+                do {
+                    y = vecy + 1m
+                    projectzoneshadow(v0)
+                } until(!eventaccepted || y >= vecy + 1m)
+            }
 		    scalex -= 1.0S / 30
             scaley -= 1.0S / 30
             scalez -= 1.0S / 30
