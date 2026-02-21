@@ -71,7 +71,7 @@ state FenceTile_Break { // S5
         scaley += vecx
         scalez += vecx
         if (GLOBAL_3 < 1.0) {
-            SoundPitchDefault()
+            SoundPitchDefault(58)
             sounddecay(0xC0)
             soundplay([FnSAA], 1V)
             GLOBAL_3 += 1.0
@@ -105,7 +105,7 @@ state Mine { // S6
         do {
             unless(rand(10)) {
                 sounddelay(2)
-                SoundPitchDefault(56)
+                SoundPitchDefault(58)
                 sounddecay(0x46)
                 soundplay([MnBAA], 0.2V)
                 playframes(MINE, 0.0, 20.0)
@@ -213,7 +213,7 @@ state Plank { // S10
         if (NoBreak) { epc = 0 }
         if ((player -> stateflag & 0x8000) && player -> z > z && !NoBreak) {
             KillEntity()
-            changestate(KillEntity)
+            changestate(Kill)
         }
         misc = y - player -> y > 2.5m
         if (misc) {
