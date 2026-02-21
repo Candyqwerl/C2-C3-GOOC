@@ -66,7 +66,7 @@ sub BoulderChaseEvents() {
         }
         else if (S5 == 4) {
             v0 = S4
-            BoulderBounce()
+            //BoulderBounce()
         }
         else if (S5 == 5) {
             BoulderCollateralRadius = S4
@@ -74,10 +74,10 @@ sub BoulderChaseEvents() {
     }
 }
 
-inline sub BearFootstep(decay, frame, p) {
+inline sub BearFootstep(decay, frame, r) {
     if (animseq == getanim(PAPA_BEAR_RUN) && animframe == frame) {
         sounddecay(decay)
-        soundpitch((p + rand(3.2)) * 46 >> 8)
+        soundpitch((r + rand(3.2)) * 46 >> 8)
         soundplay([BFSnA], 1.28V)
     }
 }
@@ -88,7 +88,7 @@ sub SoundBearFootstep() {
         soundpitch((11.2 + rand(6.4)) * 46 >> 8)
         soundplay([BG2nA], 1.28V)
     }
-    BearFootstep(16, 5.0, 11.2)
+    BearFootstep(16, 5.0, 14.4)
     BearFootstep(0, 6.0, 12.8)
     BearFootstep(16, 8.0, 11.2)
     BearFootstep(0, 9.0, 9.6)
@@ -140,7 +140,7 @@ state Boulder_Wait { // S1
             pathprog = BoulderPathLen + -1
             calcpath(pathprog)
             y += BoulderBounceYOffs + 2.550001m
-            changestateif(Kill_Entity, BoulderChaseEndMode)
+            changestateif(Kill, BoulderChaseEndMode)
             changestate(Boulder_Sleep, 0, 1)
         }
         calcpath(0)
@@ -155,7 +155,7 @@ state Boulder_Wait { // S1
     }
     trans {
         nofirst {
-            statusb = FLAG_SOLID_GROUND
+            statusb = FLAG_DISABLE_CLIP
             changestateif(Boulder_Chase, player -> z > z + 6.0m && player -> z < z + 50.0m)
         }
     }
@@ -178,18 +178,18 @@ state Boulder_Chase { // S2
             sleepanim(0, BOULDER)
         }
         do {
-            if (!(animseq == getanim(PAPA_BEAR_RUN))) {
+            if (animseq != getanim(PAPA_BEAR_RUN)) {
                 setanim(PAPA_BEAR_RUN, -1.0)
             }
-            playframe(((animframe + 1.0) % 33.0))
+            playframe((animframe + 1.0) % 33.0)
             SoundBearFootstep()
         } until(pathprog >= BoulderPathLen + -7.0)
 
         do {
-            if (!(animseq == getanim(PAPA_BEAR_RUN))) {
+            if (animseq != getanim(PAPA_BEAR_RUN)) {
                 setanim(PAPA_BEAR_RUN, -1.0)
             }
-            playframe(((animframe + 1.0) % 33.0))
+            playframe((animframe + 1.0) % 33.0)
             SoundBearFootstep()
         } until(animseq == getanim(PAPA_BEAR_RUN) && animframe == 9.0 || animseq == getanim(PAPA_BEAR_RUN) && animframe == 26.0)
 
@@ -199,7 +199,7 @@ state Boulder_Chase { // S2
 
         sounddelay(12)
         sounddecay(0xFF)
-        soundpitch((4.8 + rand(3.2)) * 52 >> 8)
+        soundpitch((8.0 + rand(3.2)) * 52 >> 8)
         soundplay([Sld0A], 2.0V)
 
         setanim(PAPA_BEAR_SLIDE, -1.0)
@@ -217,7 +217,7 @@ state Boulder_Chase { // S2
             if (self == GLOBAL_126) {
                 GLOBAL_126 = 0
             }
-            if ((spawn == S_BOULDER) && (BoulderVoice > 0)) {
+            if (spawn == S_BOULDER && BoulderVoice > 0) {
                 voice = BoulderVoice
                 soundsetup(2, voice, 6)
                 soundsetup(0, voice, 3, 0)
@@ -225,9 +225,7 @@ state Boulder_Chase { // S2
                 BoulderVoice = -1
             }
         }
-        else {
-            accevcstate(Chase_End_Impact, e == EventTriggered)
-        }
+        accevcstate(Chase_End_Impact, e == EventTriggered)
     }
     trans {
         once {
@@ -249,12 +247,12 @@ state Boulder_Chase { // S2
             BoulderHasVoice = 0
             if (spawn == S_BOULDER) {
                 soundpitch(3.625)
-                sounddecay(0.562)
+                sounddecay(0x90)
                 soundplay([SlieA], 0.4V)
 
                 soundpitch(3.625)
-                sounddelay(0.039)
-                sounddecay(0.992)
+                sounddelay(10)
+                sounddecay(0xFE)
                 soundplay([RmbeA], 2.0V)
 
                 BoulderVoice = voice
@@ -274,7 +272,7 @@ state Boulder_Chase { // S2
         unless(STATUS_FIRSTFRAME) {
             misc = player -> stateflag & 32
             if (misc) {
-                misc = !(player -> player == self)
+                misc = player -> player != self
             }
             if (!misc) {
                 misc = 0
@@ -331,7 +329,7 @@ state Boulder_Chase { // S2
                 else if (spawn == S_BEAR) {
                     sendevent(Event38, player, self)
                     if (eventaccepted) {
-                        statusb &= ~(FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y)
+                        statusb &= ~(FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE)
                         if (!SHAKEY) {
                             SHAKEY = 10.0
                         }
@@ -403,7 +401,7 @@ state Boulder_Chase { // S2
         }
         misc = z > CAMTRANSZ - v0
         if (misc) {
-            misc = !BoulderChaseEndMode || (player->y - y) <= 2.250m || pathprog < (BoulderPathLen - 17.0)
+            misc = !BoulderChaseEndMode || player -> y - y <= 2.550m + 1 || pathprog < (BoulderPathLen - 17.0)
         }
         if (!misc) {
             misc = 0
@@ -412,7 +410,7 @@ state Boulder_Chase { // S2
             if (!(player -> stateflag & 32)) {
                 sendevent(Event38, player, self)
                 if (eventaccepted) {
-                    statusb &= ~(FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y)
+                    statusb &= ~(FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE)
                 }
             }
             if (spawn == S_BEAR) {
@@ -480,7 +478,7 @@ state Boulder_Chase { // S2
         BoulderLastZ = z
         if (spawn == S_BOULDER) {
             calcpath(pathprog)
-            y += BoulderBounceYOffs + 2.250m
+            y += BoulderBounceYOffs + 2.550m + 1
             troty = troty + (loopseek(BoulderWobble, 20deg, 1deg) + -10deg)
             rotz = troty
             rotx = spd(rotx, 360deg)
@@ -488,7 +486,7 @@ state Boulder_Chase { // S2
         else if (spawn == S_BEAR) {
             v0 = roty
             calcpath(pathprog)
-            y += BoulderBounceYOffs + 2.250m
+            y += BoulderBounceYOffs + 2.550m + 1
             troty = roty
             roty = v0
             v0 = degdist(troty, atan2(player -> trans))
@@ -514,10 +512,10 @@ state PapaBear_Laugh { // S3
         GLOBAL_126 = 0
         zindex = -70
         do {
-            if (!(animseq == getanim(PAPA_BEAR_RUN))) {
+            if (animseq != getanim(PAPA_BEAR_RUN)) {
                 setanim(PAPA_BEAR_RUN, -1.0)
             }
-            playframe(((animframe + 1.0) % 33.0))
+            playframe((animframe + 1.0) % 33.0)
             SoundBearFootstep()
         } until(animseq == getanim(PAPA_BEAR_RUN) && animframe == 9.0 || animseq == getanim(PAPA_BEAR_RUN) && animframe == 26.0)
 
@@ -526,21 +524,21 @@ state PapaBear_Laugh { // S3
         soundplay([Sld0A], 2.0V)
         sounddelay(12)
         sounddecay(0xFF)
-        soundpitch((4.8 + rand(3.2)) * 52 >> 8)
+        soundpitch((8.0 + rand(0.8)) * 52 >> 8)
         soundplay([Sld0A], 2.0V)
         playframes(PAPA_BEAR_LAUGH, 0.0, 19.0)
         
         do (var i = 0) {
             if (i < 4.0) {
-                sounddecay(0.996)
-                soundpitch(2.031)
+                sounddecay(0xFF)
+                soundpitch(0x252)
                 soundplay([BG2nA], 1.28V)
                 soundsetup(7, voice, 6)
                 soundsetup(0x1FFF, voice, 3, 0)
             }
             else if (i == 4.0) {
-                sounddecay(0.996)
-                soundpitch(2.031)
+                sounddecay(0xFF)
+                soundpitch(0x208)
                 soundplay([BG2nA], 1.28V)
             }
             playanim(20, PAPA_BEAR_LAUGH)
@@ -588,7 +586,7 @@ state PapaBear_Laugh { // S3
         save(roty, rotz) {
             calcpath(pathprog)
         }
-        y += BoulderBounceYOffs + 2.250m
+        y += BoulderBounceYOffs + 2.550m + 1
     }
 }
 state Chase_End_Fall { // S4
@@ -644,6 +642,7 @@ state Chase_End_Fall { // S4
 }
 
 state Chase_End_Impact { // S5
+    event => state Boulder_Chase
     stateflag 0x21
     code(){
         if (BoulderVoice > 0) {
@@ -680,9 +679,8 @@ state Chase_End_Impact { // S5
             changestate(Boulder_Sleep, 0, v0)
         }
     }
-    event => state Boulder_Chase
 }
-state Boulder_Sleep {
+state Boulder_Sleep { // S6
     event => state Boulder_Chase
     stateflag 0x21
     __transargs
@@ -718,11 +716,11 @@ state Boulder_Sleep {
                 v0 += 6.90m
             }
             else {
-                v0 += 2.30m
+                v0 += 2.30m + 1
             }
             misc = player -> z < v0
             if (misc) {
-                misc = ((v0 - player -> z) < 8.0m)
+                misc = (v0 - player -> z) < 8.0m
             }
             if (!misc) {
                 misc = 0
@@ -733,13 +731,13 @@ state Boulder_Sleep {
         }
     }
 }
-state PapaBear_Body {
+state PapaBear_Body { // S7
     code(){
         zindex = -150
         sleepanim(0, PAPA_BEAR_BODY)
     }
 }
-state Kill_Entity {
+state Kill { // S8
     statusc 0
     code(){ }
 }
