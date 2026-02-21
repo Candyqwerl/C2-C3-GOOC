@@ -1,0 +1,728 @@
+#gool SarOC 57 3
+
+#include "goolstdlib.gooc"
+
+#anim SARCOPHAGASS_WALK   [Sa1iV] 24 1
+#anim SARCOPHAGASS_BREAK  [Sa2iV] 12 1
+#anim SARCOPHAGASS_SPIN   [Sa3iV] 22 1
+#anim MUMMY_WALK          [Mu1iV] 54 1
+#anim MUMMY_GRAB          [Mu2iV] 24 1
+#anim MUMMY_SHAKE         [Mu3iV] 12 1
+
+event Event19              => sub ResetVoice // EventRespawn
+event EventDespawn         => sub ResetVoice
+
+#spawn S_SARCOPHAGASS  Sarcophagass_Init
+#spawn S_MUMMY         Mummy_Spawn
+#spawn S___2           Unused
+
+var PathStartZ, PathEndZ, ReversePath, MummyTargetPlayer, MummyTargetX, MummyTargetZ, SarcophagassFlags, PlayerZTrend, MummyBaseY, mem10, mem11, PathStartX, PathY, PathZ, PathRotY, ZindexNear, ZindexFar, ZindexDistThresh
+
+state Sarcophagass_Init { // S0
+    stateflag 0x1
+    statusc 0
+    code(CycleLen, CycleOffs, MaxPathXOffs, Flags, a4, a3, NearZindex, FarZindex, ZindexDistThr) {
+        field_61 = CycleLen * 1s / 1.2s
+        groundvel = field_61 << 1
+        groundtime = CycleOffs
+        field_60 = MaxPathXOffs
+        SarcophagassFlags = Flags
+        mem10 = a4
+        ZindexNear = NearZindex
+        ZindexFar = FarZindex
+        ZindexDistThresh = ZindexDistThr
+        zindex = ZindexNear
+        if (a3 >= 0) mem10 = a3;
+        mem10 /= 25
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_TRACK_PATH_SIGN
+        SetScale(1.25S)
+        field_63 = 0
+        stalltime = 0
+        mem11 = 0
+        PlayerZTrend = 0
+        velz = 0
+        calcpath(0, vvec)
+        PathStartZ = vecz
+        PathStartX = vecx
+        PathY = vecy
+        PathZ = vecz
+        calcpath(pathlen + -1, 0)
+        PathEndZ = z
+        PathRotY = (atan2(self, vecx) + 180deg)
+        ReversePath = 0
+        if (PathStartZ > PathEndZ) {
+            ReversePath = 1
+            v0 = PathStartZ
+            PathStartZ = PathEndZ
+            PathEndZ = v0
+        }
+        if (entitygetstate(2)) {
+            roty = atan2(player -> trans)
+            troty = roty
+            setanim(MUMMY_WALK, 0)
+            spawn = S_MUMMY
+            changestate(Mummy_Walk)
+        }
+        else {
+            {
+                var SarcoCycleLen
+                SarcoCycleLen = time(groundvel, groundtime)
+                if (SarcoCycleLen >= field_61) {
+                    invincibletime = 1 // field_51 
+                    SarcoCycleLen -= field_61
+                    pathprog = ((pathlen + -1) - (SarcoCycleLen * pathlen) / field_61)
+                }
+                else {
+                    pathprog = ((SarcoCycleLen * pathlen) / field_61)
+                }
+                calcpath(pathprog, 0)
+                field_62 = troty
+                roty = troty
+            }
+            changestate(Sarcophagass_Walk)
+        }
+    }
+}
+
+inline sub SetZindex() {
+    if (CAMTRANSZ - z >= ZindexDistThresh) {
+        zindex = ZindexFar
+    }
+    else {
+        zindex = ZindexNear
+    }
+}
+
+state Sarcophagass_Walk { // S1
+    stateflag 0x1
+    statusc 0
+    code(){
+        animseq = getanim(SARCOPHAGASS_WALK)
+        do {
+            setanim(SARCOPHAGASS_WALK, -1.0)
+            do {
+                animframe += 1.0
+                if (!animframe || animframe == 12.0) {
+                    spawn(9, 21, 1, 0, 0, 0, 0, 1.19S, 0, 24, 2) // Dust/Smoke particle
+                    SoundPitchDefault(52)
+                    soundsetup(6, self, 8)
+                    soundplay([Mu2iA], 1V)
+                }
+                playframe()
+            } while (animframe + 1.0 <= 23.0)
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventJumpedOn || e == EventSlamHit || e == EventHit || e == EventFling || e == EventHitInvincible || e == EventSpinHit || e == EventSlideHit) {
+            accev()
+        }
+        else if (PlayerZTrend >= 0) {
+            velz = 14.0m
+        }
+        else {
+            velz = -14.0m
+        }
+        accevcstate(Sarcophagass_Broken, e == EventHit || e == EventHitInvincible || e == EventFling)
+        accevcstate(Sarcophagass_Break, e == EventJumpedOn || e == EventSlamHit)
+        accevcstate(Sarcophagass_Break, e == EventSpinHit || e == EventSlideHit)
+    }
+    trans {
+        once {
+            statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_TRACK_PATH_SIGN
+        }
+        {
+            var PathSpeed = 0
+            sendevent(EventHit, collider, 100.0)
+            changestateif(Sarcophagass_Crush, eventaccepted)
+            PathSpeed = time(groundvel, groundtime)
+            invincibletime = 0
+            if (PathSpeed >= field_61) {
+                invincibletime = 1
+                PathSpeed -= field_61
+                pathprog = ((pathlen + -1) - (PathSpeed * pathlen) / field_61)
+            }
+            else {
+                pathprog = ((PathSpeed * pathlen) / field_61)
+            }
+            calcpath(pathprog, vvec)
+            y = vecy
+            if (invincibletime) {
+                troty = ((troty + 180deg) & 0xFFF)
+            }
+            if (field_60 && invincibletime) {
+                {
+                    var S4, S5, S6, S7
+                    S4 = cos(0 - PathRotY)
+                    S5 = sin(0 - PathRotY)
+                    velx = player -> x - PathStartX
+                    velz = player -> z - PathZ
+                    S6 = (((velz >> 8) * S5) + ((velx >> 8) * S4) >> 4)
+                    velx = vecx - PathStartX
+                    velz = vecz - PathZ
+                    S7 = (((velz >> 8) * S4) - ((velx >> 8) * S5) >> 4)
+                    if (abs(S6) > field_60) {
+                        if (S6 >= 0) {
+                            S6 = field_60
+                        }
+                        else {
+                            S6 = 0 - field_60
+                        }
+                    }
+                    velx = ((S6 - mem11) >> 4)
+                    if (velx > mem10) {
+                        velx = mem10
+                    }
+                    if (velx < 0 - mem10) {
+                        velx = 0 - mem10
+                    }
+                    S6 = mem11 + velx
+                    mem11 = S6
+                    S4 = cos(PathRotY)
+                    S5 = sin(PathRotY)
+                    velz = (((S7 >> 8) * S4) - ((S6 >> 8) * S5) >> 4)
+                    velx = (((S7 >> 8) * S5) + ((S6 >> 8) * S4) >> 4)
+                    x = PathStartX + velx
+                    z = PathZ + velz
+                    field_63 = x - vecx
+                    stalltime = z - vecz
+                }
+                if (player -> z >= z) {
+                    troty += (degdist(troty, atan2(player -> trans)) >> 1)
+                }
+            }
+            else {
+                x = vecx + field_63
+                z = vecz + stalltime
+            }
+            if (z >= player -> z) {
+                PlayerZTrend += 1
+                if (PlayerZTrend > 6) {
+                    PlayerZTrend = 6
+                }
+            }
+            else {
+                PlayerZTrend += -1
+                if (PlayerZTrend < -6) {
+                    PlayerZTrend = -6
+                }
+            }
+            v0 = (degdist(roty, troty) >> 2)
+            if (v0 > 18.65deg) {
+                v0 = 18.65deg
+            }
+            if (v0 < -18.65deg) {
+                v0 = -18.65deg
+            }
+            roty = ((roty + v0) & 0xFFF)
+        }
+        if (SarcophagassFlags & 8) {
+            broadcastevent(EventHit, 4, 100.0)
+        }
+        SetZindex()
+    }
+}
+
+state Sarcophagass_Break { // S2
+    stateflag 0x1
+    statusc 0
+    code(){
+        spawn(SarOC, S_MUMMY, 1)
+        entitysetstate(1)
+        spawn = S_MUMMY
+        changestate(Mummy_Walk_Start)
+    }
+}
+
+state Sarcophagass_Broken { // S3
+    stateflag 0x1
+    statusc 0
+    code(){
+        spawn(SarOC, S_MUMMY, 1)
+        entitysetspawn(0)
+        statusb = 0
+        while (child) {
+            playnull()
+        }
+    }
+}
+
+state Mummy_Walk_Start { // S4
+    stateflag 0x1
+    statusc 0
+    code(){
+        SoundPitchDefault(52)
+        soundplay([Mu4iA], 1V)
+        do {
+            playframes(MUMMY_WALK, 0.0, 53.0)
+        } while (1)
+    }
+    trans {
+        z = spd(z, velz)
+        velz = seek(velz, 0, 0.84m)
+        changestateifn(Mummy_Walk, velz)
+        if (SarcophagassFlags & 1) {
+            var Flags
+            misc = SarcophagassFlags & 2
+            if (misc) {
+                misc = z >= PathStartZ
+                if (misc) {
+                    misc = z <= PathEndZ
+                }
+            }
+            if (!misc) {
+                misc = 0
+            }
+            if (misc) {
+                Flags = 1
+                vecy = PathY
+            }
+            else {
+                save(y) {
+                    y += 2.0m
+                    projectzoneshadow(0)
+                    if (misc) {
+                        if (y - vecy < 6.0m) {
+                            Flags = 1
+                        }
+                    }
+                }
+            }
+            if (Flags) {
+                y += ((vecy - y) >> 1)
+            }
+            else {
+                changestateif(Mummy_Fall_Death, SarcophagassFlags & 4)
+            }
+
+        }
+        if (SarcophagassFlags & 8) {
+            broadcastevent(EventHit, 4, 100.0)
+        }
+        SetZindex()
+        MummyFootstepSound()
+    }
+}
+
+state Mummy_Walk { // S5
+    stateflag 0x1
+    statusc 0
+    code(){
+        if (animseq == getanim(MUMMY_WALK)) {
+            unless(animseq == getanim(MUMMY_WALK)) {
+                setanim(MUMMY_WALK, -1.0)
+            }
+            while (animframe < 53.0) {
+                playframe(animframe + 1.0)
+            }
+        }
+        do {
+            playframes(MUMMY_WALK, 0.0, 53.0)
+            if (!rand(2)) {
+                SoundPitchDefault(52)
+                soundplay([Mu4iA], 1V)
+            }
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Sarcophagass_Squash, e == EventJumpedOn || e == EventSlamHit || e == EventHit || e == EventFling || e == EventHitInvincible)
+        accevcstate(Sarcophagass_Fling, e == EventSpinHit || e == EventSlideHit)
+    }
+    trans {
+        once {
+            statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+            sub_625()
+            if (misc) {
+                MummyTargetPlayer = 1
+                MummyTargetX = player -> x
+                MummyTargetZ = player -> z
+            }
+            else {
+                MummyTargetPlayer = 0
+                RandomizePathTarget()
+            }
+        }
+        if ((animseq == getanim(MUMMY_WALK) && (animframe >= 0) && (animframe <= 12.0)) || (animseq == getanim(MUMMY_WALK) && (animframe >= 24.0) && (animframe <= 37.0))) {
+            sub_625()
+            if (misc) {
+                MummyTargetPlayer = 1
+                MummyTargetX = player -> x
+                MummyTargetZ = player -> z
+            }
+            else if (MummyTargetPlayer) {
+                MummyTargetPlayer = 0
+                RandomizePathTarget()
+            }
+            velx = MummyTargetX - x
+            velz = MummyTargetZ - z
+            vecx = abs(velx)
+            vecz = abs(velz)
+            if ((MummyTargetPlayer == 0) && (vecx <= 0.12m) && (vecz <= 0.12m)) {
+                x = MummyTargetX
+                z = MummyTargetZ
+                RandomizePathTarget()
+                velx = MummyTargetX - x
+                velz = MummyTargetZ - z
+                vecx = abs(velx)
+                vecz = abs(velz)
+            }
+            troty = atan(velx, velz)
+            roty = degseek(roty, troty, 200deg)
+            {
+                var MaxVelZ, MaxVelX
+                v0 = 48
+                MaxVelX = (abs(v0 * cos(roty) >> 4))
+                MaxVelZ = (abs(v0 * sin(roty) >> 4))
+                if (vecx >= vecz) {
+                    if (vecx > MaxVelZ) {
+                        velz = (((MaxVelZ >> 8) * (velz >> 8)) / (vecx >> 8)) << 8
+                        if (velx >= 0) {
+                            velx = MaxVelZ
+                        }
+                        else {
+                            velx = 0 - MaxVelZ
+                        }
+                        vecx = MaxVelZ
+                        vecz = abs(velz)
+                    }
+                }
+                else if (vecz > MaxVelX) {
+                    velx = (((MaxVelX >> 8) * (velx >> 8)) / (vecz >> 8)) << 8
+                    if (velz >= 0) {
+                        velz = MaxVelX
+                    }
+                    else {
+                        velz = 0 - MaxVelX
+                    }
+                    vecz = MaxVelX
+                    vecx = abs(velx)
+                }
+            }
+            x += velx
+            z += velz
+            if (SarcophagassFlags & 1) {
+                var Flags
+                misc = SarcophagassFlags & 2
+                if (misc) {
+                    misc = z >= PathStartZ
+                    if (misc) {
+                        misc = z <= PathEndZ
+                    }
+                }
+                if (!misc) {
+                    misc = 0
+                }
+                if (misc) {
+                    Flags = 1
+                    vecy = PathY
+                }
+                else {
+                    save(y) {
+                        y += 2.0m
+                        projectzoneshadow(0)
+                        if (misc) {
+                            if (y - vecy < 6.0m) {
+                                Flags = 1
+                            }
+                        }
+                    }
+                }
+                if (Flags) {
+                    y += ((vecy - y) >> 1)
+                }
+                else {
+                    changestateif(Mummy_Fall_Death, SarcophagassFlags & 4)
+                }
+            }
+        }
+        if (SarcophagassFlags & 8) {
+            broadcastevent(EventHit, 4, 100.0)
+        }
+        if (z >= player -> z) {
+            PlayerZTrend += 1
+            if (PlayerZTrend > 6) {
+                PlayerZTrend = 6
+            }
+        }
+        else {
+            PlayerZTrend += -1
+            if (PlayerZTrend < -6) {
+                PlayerZTrend = -6
+            }
+        }
+        sendevent(EventHit, collider, 100.0)
+        changestateif(Mummy_Grab, eventaccepted)
+        SetZindex()
+        MummyFootstepSound()
+    }
+}
+
+sub MummyFootstepSound() {
+    if ((animseq == getanim(MUMMY_WALK)) && (animframe == 12.0) || (animframe == 37.0)) {
+        soundpitch((8.0 + rand(3.2)) * 52 >> 8)
+        soundplay([Mu2iA], 1V)
+    }
+}
+
+sub sub_625() {
+    misc = 0
+    if (player -> z > PathEndZ || player -> z < PathStartZ) {
+        return
+    }
+    save(vecx, vecy, vecz, pathprog) {
+        pathprog = ((((player -> z - PathStartZ) >> 8) * (pathlen + -1)) / ((PathEndZ - PathStartZ) >> 8))
+        if (ReversePath) {
+            pathprog = ((pathlen + -1) - pathprog)
+        }
+        calcpath(pathprog, vvec)
+        if (abs(player -> x - vecx) > field_60) {
+            return
+        }
+    }
+    misc = 1
+}
+ 
+sub RandomizePathTarget() {
+    var RandLoopCount = 4
+    do {
+        MummyTargetZ = (rand(PathEndZ - PathStartZ) + PathStartZ)
+        misc = !RandLoopCount
+        if (!misc) {
+            misc = abs(z - MummyTargetZ) >= 5.0m
+            if (!misc) {
+                misc = 0
+            }
+        }
+        if (misc) {
+            break
+        }
+        RandLoopCount += -1
+    } while (1)
+    save(vecx, vecy, vecz, pathprog) {
+        pathprog = ((((MummyTargetZ - PathStartZ) >> 8) * (pathlen + -1)) / ((PathEndZ - PathStartZ) >> 8))
+        if (ReversePath) {
+            pathprog = ((pathlen + -1) - pathprog)
+        }
+        calcpath(pathprog, vvec)
+        RandLoopCount = 4
+        do {
+            MummyTargetX = ((rand(field_60 << 1) + vecx) - field_60)
+            misc = !RandLoopCount
+            if (!misc) {
+                misc = ((abs(x - MummyTargetX)) >= 1.0m)
+                if (!misc) {
+                    misc = 0
+                }
+            }
+            if (misc) {
+                break
+            }
+            RandLoopCount += -1
+        } while (1)
+    }
+}
+
+state Mummy_Fall_Death { // S6
+    stateflag 0x1
+    statusc 0
+    code(){
+        SoundPitchDefault(52)
+        soundplay([Mu4iA], 1V)
+        S__5()
+    }
+    trans {
+        once {
+            entitysetspawn(0)
+            statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+            MummyBaseY = y
+            zindex >>= 1
+            vely = 0
+        }
+        changestateif(Kill_Entity, MummyBaseY - y >= 20.0m)
+        save(y, z) {
+            y += 1.0m
+            z += 2.0m
+            projectzoneshadow(0)
+            if (misc) misc = ((y - vecy) <= 2.0m);
+            if (!misc) misc = 0;
+            if (misc) velz = -3.0m;
+            else {
+                z += -4.0m
+                projectzoneshadow(0)
+                if (misc) misc = ((y - vecy) <= 2.0m);
+                if (!misc) misc = 0;
+                if (misc) velz = 3.0m;
+            }
+        }
+        z = spd(z, velz)
+        velz = seek(velz, 0, 0.84m)
+        vely += -0.04m
+        y += vely
+        if (SarcophagassFlags & 8) {
+            broadcastevent(EventHit, 4, 100.0)
+        }
+    }
+}
+
+state Mummy_Spawn { // S7
+    stateflag 0x1
+    statusc 0
+    code(){
+        soundpitch(3.262)
+        sounddecay(0xFA)
+        soundplay([Mu1iA], 1.0V)
+        soundsetup(0, voice, 5)
+        scalex = creator -> scalex
+        scaley = creator -> scaley
+        scalez = creator -> scalez
+        zindex = creator -> zindex
+        playframes(SARCOPHAGASS_BREAK, 0.0, 11.0)
+    }
+}
+
+state Sarcophagass_Fling { // S8
+    stateflag 0x30
+    statusc 0x32
+    code(h){
+        EnemyFlingCombo(h)
+        if (PlayerZTrend >= 0) {
+            troty = 0
+        }
+        else {
+            troty = 180deg
+        }
+        EnemyFlingSetVel(3.0m)
+        EnemyFlingWaitScale()
+    }
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Sarcophagass_Crush { // S9
+    stateflag 0x23
+    statusc 0x32
+    code(){
+        SoundPitchDefault(52)
+        soundplay([Mu4iA], 1V)
+        playframes(SARCOPHAGASS_SPIN, 0.0, 21.0)
+        if (!SHAKEY) {
+            SHAKEY = 10.0
+        }
+        soundpitch((8.0 + rand(3.2)) * 52 >> 8)
+        soundsetup(6, self, 8)
+        soundplay([Mu2iA], 1.0V)
+        soundpitch(3.262)
+        sounddecay(0xFA)
+        soundplay([Mu1iA], 1.0V)
+        sleepframe(animframe)
+
+    }
+    event(e, a) {
+        accevcstate(Sarcophagass_Broken, e == EventHitInvincible || e == EventHit)
+    }
+    trans {
+        nofirst{
+            x = seek(x, player -> x, spd(4.0m))
+            rotx = degseek(rotx, player -> rotx, 1000deg)
+
+            y = seek(y, player -> y, spd(4.0m))
+            roty = degseek(roty, player -> roty, 1000deg)
+
+            z = seek(z, player -> z, spd(4.0m))
+            rotz = degseek(rotz, player -> rotz, 1000deg)
+
+            zindex = seek(zindex, player -> zindex + 30, 1)
+            if (frametime - statetime >= 0.5s) {
+                tpc = 0
+            }
+        }
+    }
+}
+
+state Mummy_Grab { // S10
+    stateflag 0x23
+    statusc 0
+    code(){
+        scalex = abs(scalex)
+        statusb =  FLAG_COLLIDABLE | FLAG_ROT_Y | 0x40000000
+        roty += 180deg
+        trotx = 720deg
+        troty = (atan2(player -> trans) + 180deg)
+        player -> x = x
+        player -> y = y
+        player -> z = z
+        player -> troty = troty
+        SoundPitchDefault(52)
+        soundplay([Mu4iA], 1V)
+        playframes(MUMMY_GRAB, 0.0, 23.0)
+        soundpitch((0x1333 + rand(3.2)) * 52 >> 8)
+        soundplay([Mu4iA], 1V)
+        do {
+            zindex = player -> zindex
+            playframes(MUMMY_SHAKE, 0.0, 11.0)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Sarcophagass_Squash, e == EventHitInvincible || e == EventHit)
+    }
+}
+
+state Sarcophagass_Squash { // S11
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        statusb &= ~(FLAG_ROT_Y | FLAG_COLLIDABLE | FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | 0x8000)
+        playframe()
+        spawn(9, 4, 1, getins(SetParticleColor_Sarcophagass_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_Sarcophagass_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+
+state Kill_Entity { // S12
+    stateflag 0x1
+    statusc 0
+    code(){ }
+}
+
+sub ResetVoice() {
+    voice = -1
+    soundsetup(25, voice, 6)
+    soundsetup(0, voice, 3, 0)
+    voice = -1
+    soundsetup(0, voice, 5)
+}
+
+sub S__5() { // 380 state 5
+    if (animseq == getanim(MUMMY_WALK)) {
+        unless(animseq == getanim(MUMMY_WALK)) {
+            setanim(MUMMY_WALK, -1.0)
+        }
+        while (animframe < 53.0) {
+            playframe(animframe + 1.0)
+        }
+    }
+    do {
+        playframes(MUMMY_WALK, 0.0, 53.0)
+        if (!rand(2)) {
+            SoundPitchDefault(52)
+            soundplay([Mu4iA], 1V)
+        }
+    } while (1)
+}
+
+

@@ -1,0 +1,657 @@
+#gool DynOC 55 5
+
+#include "goolstdlib.gooc"
+
+#anim PISTON_UP                      [Pu1gV] 13 1
+#anim PISTON                         [Pi1gV] 21 1
+#anim PISTON_MINI                    [Pi2gV] 21 1
+#anim PAD_RELEASED                   [Pa1gV] 6 1
+#anim PAD_PRESSED                    [Pa2gV] 6 1
+#anim SHRINKRAY                      [Gu1gV] 11 1
+#anim SHRINKRAY_SHOOT                [Gu2gV] 10 1
+#anim SHRINKRAY_DOWN                 [Gd1gV] 11 1
+#anim SHRINKRAY_SHOOT_DOWN           [Gd2gV] 10 1
+#anim PROJECTILE                     [Gb1gV] 16 1
+#anim PROJECTILE_EXPLODE             [Ge1gV] 1 1
+#anim ROBOT_WALKER                   [Rw1gV] 50 1
+
+#sprite PROJECTILE_PARTICLE[Dy1gT]
+#tex 0x505050 0 3 14 5 256 32 64 32
+#tex 0x505050 0 3 14 5 320 32 64 32
+#tex 0x505050 0 3 14 5 384 96 64 32
+#tex 0x505050 0 3 14 5 384 64 64 32
+#tex 0x505050 0 3 14 5 384 32 64 32
+#tex 0x505050 0 3 14 5 448 96 64 32
+#tex 0x505050 0 3 14 5 448 64 64 32
+#tex 0x505050 0 3 14 5 448 32 64 32
+#tex 0x505050 0 3 14 5 512 96 64 32
+
+#anim BONUS_PLAQUE[Bp1gV] 1 1
+
+#sprite BACKGROUND_COLOR[Cr10T] // ??
+#tex 0xFF20FF 0 2 7 10 136 12 4 4
+
+#spawn S_PISTON_UP                   Piston_Up                    
+#spawn S_PISTON_DOWN                 Piston_Down                  
+#spawn S_PAD                         Pad_Spawn                    
+#spawn S_SHRINKRAY                   ShrinkRay_Spawn              
+#spawn S_SHRINKRAY_DOWN              ShrinkRay_Spawn              
+#spawn S_ROBOT_WALKER                Robot_Walker                 
+#spawn S_PROJECTILE                  Projectile         
+#spawn S_PROJECTILE_PARTICLES        Projectile_Particle
+#spawn S_DYNAMO_BACKGROUND           Dynamo_Background            
+#spawn S_SHRINKER                    Shrinker              
+#spawn S_PROJECTILE_EXPLOSION        Projectile_Explosion         
+#spawn S_BONUS_PLAQUE                Bonus_Plaque                 
+
+var PlayerStatus, ShrinkRayID, ShrinkRayShotCount, PlaqueBaseY
+
+state Piston_Up { // S0
+    stateflag 0x80000A01
+    code(CycleLen, CycleOffs, ExtendedDur) {
+        CycleLen = CycleLen * 1s / 1.2s
+        CycleOffs = CycleOffs * 1s / 1.2s
+        statusb = FLAG_SOLID_SIDES | FLAG_SOLID_TOP | FLAG_CARRY_COLLIDER | FLAG_COLLIDABLE | 0x400000
+        var PistonCycleLen, PistonRetractedDur, PistonCyclePhase, S6, PistonCarryingPlayer, PistonVertex
+        PistonRetractedDur = CycleLen - ExtendedDur
+        if (PistonRetractedDur < 0) PistonRetractedDur = 0;
+        setanim(PISTON_UP)
+        do {
+            PistonCycleLen = time(CycleLen, CycleOffs)
+            if (PistonCycleLen < ExtendedDur) {
+                v0 = ExtendedDur + -13
+                if (PistonCycleLen >= v0) {
+                    if (PistonCycleLen == v0) {
+                        soundpitch(1.740)
+                        soundplay([DSmgA], 0.2V)
+                    }
+                    PistonCyclePhase = 3
+                    PistonCycleLen = (12 - (PistonCycleLen - v0))
+                }
+                else {
+                    PistonCyclePhase = 0
+                    PistonCycleLen = 12
+                }
+            }
+            else {
+                PistonCycleLen -= ExtendedDur
+                v0 = PistonRetractedDur + -13
+                if (PistonCycleLen >= v0) {
+                    if (PistonCycleLen == v0) {
+                        soundpitch(2.903)
+                        soundplay([DSmgA], 0.5V)
+                    }
+                    PistonCyclePhase = 1
+                    PistonCycleLen -= v0
+                }
+                else {
+                    PistonCyclePhase = 2
+                    PistonCycleLen = 0
+                }
+            }
+            PistonCarryingPlayer = 0
+            if (PistonCyclePhase == 1 || !PistonCyclePhase) {
+                if (distance(player, DIST_EXACT | DIST_NO_Y) <= 1.30m) {
+                    getvert(vvec, self, 0)
+                    PistonVertex = vecy
+                    if ((player -> y < PistonVertex + 0.10m) && (player -> y > PistonVertex + -2.50m)) {
+                        player -> y = PistonVertex
+                        if (player -> vely < 0) {
+                            player -> vely = 0
+                        }
+                        player -> statusa |= FLAG_GROUNDLAND
+                        player -> groundtime = player -> frametime
+                        if (player -> vely < 0) {
+                            player -> groundvel = player -> vely
+                        }
+                        PistonCarryingPlayer = 1
+                        if (PistonCyclePhase == 1) {
+                            S6 += 1
+                        }
+                    }
+                }
+            }
+            playframe(PistonCycleLen << 8)
+        } while (1)
+    }
+}
+
+state Piston_Down { // S1
+    code(CycleLen, CycleOffs, ExtendedDur, PistonSize) {
+        zindex = 24
+        CycleLen = CycleLen * 1s / 1.2s
+        CycleOffs = CycleOffs * 1s / 1.2s
+        ExtendedDur = ExtendedDur * 1s / 1.2s
+        PlayerStatus = 0
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_SOLID_BOTTOM | FLAG_COLLIDABLE
+        var PistonCycleLen, PistonRetractedDur, PistonCyclePhase, PistonCanCrush = 1, PistonFullExtend
+        PistonRetractedDur = CycleLen - ExtendedDur
+        if (PistonRetractedDur < 0) PistonRetractedDur = 0;
+        if (PistonSize == 0) {
+            setanim(PISTON_MINI)
+        }
+        else {
+            setanim(PISTON)
+        }
+        do {
+            PistonFullExtend = 0
+            PistonCycleLen = time(CycleLen, CycleOffs)
+            if (PistonCycleLen < ExtendedDur) {
+                v0 = ExtendedDur + -8
+                if (PistonCycleLen >= v0) {
+                    if (PistonCycleLen == v0) {
+                        soundpitch(2.903)
+                        soundplay([DSmgA], 0.5V)
+                    }
+                    PistonCyclePhase = 3
+                    PistonCycleLen = ((PistonCycleLen - v0) + 1)
+                }
+                else {
+                    PistonCyclePhase = 0
+                    PistonCycleLen = 0
+                }
+            }
+            else {
+                PistonCycleLen -= ExtendedDur
+                if (PistonCycleLen == 0) {
+                    PistonFullExtend = 1
+                }
+                v0 = PistonRetractedDur + -12
+                if (PistonCycleLen >= v0) {
+                    if (PistonCycleLen == v0) {
+                        soundpitch(1.740)
+                        soundplay([DSmgA], 0.2V)
+                    }
+                    PistonCyclePhase = 1
+                    PistonCycleLen = ((PistonCycleLen - v0) + 9)
+                }
+                else {
+                    PistonCyclePhase = 2
+                    PistonCycleLen = 8
+                }
+            }
+            if (PistonCyclePhase == 0) {
+                PistonCanCrush = 1
+            }
+            if (!(player -> stateflag & 0x20) && !player -> invincible) {
+                if (!PistonCyclePhase) {
+                    PlayerStatus = 0
+                }
+            }
+            else {
+                if (PlayerStatus == 0) {
+                    PlayerStatus = 1
+                }
+                if (PistonCyclePhase == 0) {
+                    PlayerStatus = 2
+                }
+            }
+            if (PistonCyclePhase == 3 || PistonFullExtend) {
+                misc = PlayerStatus == 0
+                if (misc) {
+                    misc = collider
+                    if (misc) {
+                        misc = PistonCanCrush
+                        if (misc) {
+                            misc = y > player -> y
+                            if (misc) {
+                                misc = y - player -> y < 14.0m
+                                if (misc) {
+                                    misc = distance(player, DIST_EXACT | DIST_NO_Y) <= 1.30m
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!misc) {
+                    misc = 0
+                }
+                if (misc) {
+                    sendevent(EventCrush, collider, 100.0)
+                    PistonCanCrush = 0
+                }
+            }
+            if (PlayerStatus == 2) {
+                playframe(0)
+            }
+            else {
+                playframe(PistonCycleLen << 8)
+                if (PistonFullExtend) {
+                    unless(SHAKEY) {
+                        SHAKEY = 0 > 3.2m / 256 - abs(x - player -> x) / (1m / 256) ? 0 : 3.2m / 256 - abs(x - player -> x) / (1m / 256)
+                    }
+                }
+            }
+        } while (1)
+    }
+}
+
+state Pad_Spawn { // S2
+    stateflag 0x80000A01
+    code(ID, ry) {
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        ShrinkRayID = ID
+        roty = ry
+        statusb = FLAG_SOLID_TOP | FLAG_COLLIDABLE | 0x400000
+        changestate(Pad)
+    }
+}
+
+sub CheckPlayerDistance() {
+    misc = abs(player -> x - x) <= 1.0m
+    if (misc) {
+        misc = abs(player -> z - z) <= 1.0m
+        if (misc) {
+            misc = player -> y > y + -2.0m
+            if (misc) {
+                misc = player -> y < y + 0.2m
+                if (!misc) {
+                    misc = 0
+                }
+            }
+        }
+    }
+    if (misc) {
+        v0 = 1
+    }
+    else {
+        v0 = 0
+    }
+}
+
+state Pad { // S3
+    stateflag 0x80000A01
+    code() {
+        sleepanim(0, PAD_RELEASED)
+    }
+    trans {
+        CheckPlayerDistance()
+        changestateif(Pad_Pressed, v0)
+    }
+}
+
+state Pad_Pressed { // S4
+    stateflag 0x80000A01
+    code() {
+        if (ShrinkRayID) {
+            interrupter = objectget(ShrinkRayID)
+            sendeventif(EventTriggered, interrupter, interrupter)
+        }
+        soundpitch(3.625)
+        soundplay([swb0A], 1.0V)
+        playframes(PAD_PRESSED, 1.0, 5.0)
+        playanim(5, PAD_PRESSED, 0.15s)
+        changestate(Pad_Hold_Pressed)
+    }
+}
+
+state Pad_Hold_Pressed { // S5
+    stateflag 0x80000A01
+    code() {
+        sleepanim(5, PAD_RELEASED)
+    }
+    trans {
+        CheckPlayerDistance()
+        changestateifn(Pad_Released, v0)
+    }
+}
+
+state Pad_Released { // S6
+    stateflag 0x80000A01
+    code() {
+        playframesback(PAD_RELEASED, 4.0, 0.0)
+        changestate(Pad)
+    }
+}
+
+state ShrinkRay_Spawn { // S7
+    statusc 0x200012
+    code(ry) {
+        ShrinkRayShotCount = 0
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        roty = ry
+        rotz = roty
+        changestate(ShrinkRay)
+    }
+    event(e, a) {
+        if (e == EventTriggered) {
+            accev()
+            ShrinkRayShotCount += 1
+        }
+        if (interrupter == player) {
+            rejevret(e == EventJumpedOn || e == EventSlamHit || e == EventSlideHit || e == EventSpinHit)
+        }
+    }
+}
+
+state ShrinkRay { // S8
+    event => state ShrinkRay_Spawn
+    statusc 0x200012
+    code() {
+        if (spawn == S_SHRINKRAY) {
+            setanim(SHRINKRAY)
+        }
+        else if (spawn == S_SHRINKRAY_DOWN) {
+            setanim(SHRINKRAY_DOWN)
+        }
+        sleepframes(0.0, 10.0)
+    }
+    trans {
+        changestateif(ShrinkRay_Shoot, ShrinkRayShotCount)
+    }
+}
+
+state ShrinkRay_Shoot { // S9
+    statusc 0x200012
+    code(){
+        soundpitch(1.997)
+        soundplay([SRMgA], 1.0V)
+        if (spawn == S_SHRINKRAY) {
+            setanim(SHRINKRAY_SHOOT)
+        }
+        else if (spawn == S_SHRINKRAY_DOWN) {
+            setanim(SHRINKRAY_SHOOT_DOWN)
+        }
+        v0 = 0
+        if (spawn == S_SHRINKRAY) {
+            v0 = roty >= 0 ? 1 : -1
+        }
+        spawn(DynOC, S_PROJECTILE, 1, 1.25, pathlen + -1.3, v0)
+        ShrinkRayShotCount += -1
+        playframes(0.0, 9.0)
+        changestate(ShrinkRay)
+    }
+    event => state ShrinkRay_Spawn
+}
+
+state Projectile { // S10
+    statusc 0x12
+    __transargs
+    code(PathStartOffs, PathEnd, rx) {
+        spawn(DynOC, S_PROJECTILE_PARTICLES, 1, 0, 0.04m)
+        spawn(DynOC, S_PROJECTILE_PARTICLES, 1, 0, -0.04m)
+        soundpitch(6.892)
+        soundplay([SRSgA], 1.0V)
+        sleepframes(PROJECTILE, 0.0, 15.0)
+    }
+    trans {
+        once {
+            CopyCreatorPath()
+            statusb = FLAG_COLLIDABLE
+            density = 0.10m
+            pathprog = PathStartOffs
+            SetRot(0)
+        }
+        calcpath(pathprog, vtrans)
+        if (pathprog == PathEnd) {
+            cascadeevent(Event14, self)
+            spawn(DynOC, S_PROJECTILE_EXPLOSION, 1, rx)
+            changestate(Projectile_Cooldown)
+        }
+        pathprog = spd(pathprog, 9.0)
+        if (pathprog > PathEnd) {
+            pathprog = PathEnd
+        }
+        if (collider && !(player -> stateflag & 0x20)) {
+            cascadeevent(Event14, self)
+            spawn(DynOC, S_SHRINKER, 1, player)
+            spawn(DynOC, S_PROJECTILE_EXPLOSION, 1, rx)
+            changestate(Projectile_Cooldown)
+        }
+    }
+}
+
+state Projectile_Cooldown { // S11
+    statusc 0x12
+    code() {
+        while (child) {
+            playnull()
+        }
+    }
+}
+
+state Projectile_Explosion { // S12
+    statusc 0x12
+    __transargs
+    code(rx) {
+        rotx = 0 - rotx
+        spawn(9, 46, 1, 0, 0.5, 0xFF, 0, 0)
+        rotx = 0 - rotx
+        if (!rand(2)) {
+            sounddecay(0.375)
+            soundpitch((12.8 + rand(6.4)) * 0x6E >> 8)
+            soundplay([sp23A], (0.5V) + rand((0.1V)))
+        }
+        else {
+            sounddecay(0.375)
+            soundpitch((12.8 + rand(6.4)) * 0x6E >> 8)
+            soundplay([sp13A], (0.5V) + rand((0.1V)))
+        }
+        playanim(0, PROJECTILE_EXPLODE, 0.16s)
+        while (child) {
+            playnull()
+        }
+    }
+    trans {
+        once {
+            roty = 90deg
+            rotz = 90deg
+            if (var ProjectileRot = rx; ProjectileRot == 1) {
+                rotx = 90deg
+            }
+            else if (ProjectileRot == -1) {
+                rotx = -90deg
+            }
+            else {
+                rotx = 0
+            }
+            vecx = 4.157
+            scalex = 0.25S - vecx
+            scaley = 1.0S
+            scalez = 0.25S - vecx
+            vecy = 2.88
+            vecz = 16.0 + vecy
+        }
+        scalex += vecx
+        scalez += vecx
+        vecz -= vecy
+        moda = 16.0 - vecz
+    }
+}
+
+state Projectile_Particle { // S13
+    stateflag 0x80001
+    statusc 0x12
+    __transargs
+    code(vz) {
+        SetScale(1.5S, 0.75S, 0.75S)
+        zindex = 24
+        SetRot(0, 0, rand(360deg))
+        vecz = vz / 25
+        v0 = 0
+        do {
+            if (!rand(5)) {
+                statusb = FLAG_INVISIBLE
+                playanim(0, PROJECTILE_PARTICLE, 0.1s)
+                if (!rand(2)) {
+                    sounddecay(0.375)
+                    soundpitch((12.8 + rand(6.4)) * 0x6E >> 8)
+                    soundplay([sp23A], (0.5V) + rand((0.1V)))
+                }
+                else {
+                    sounddecay(0.375)
+                    soundpitch((12.8 + rand(6.4)) * 0x6E >> 8)
+                    soundplay([sp13A], (0.5V) + rand((0.1V)))
+                }
+            }
+            statusb = 0
+            playframes(PROJECTILE_PARTICLE, 0.0, 8.0)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Kill, e == Event14)
+    }
+    trans {
+        getvert(vtrans, creator, vz)
+        unless(STATUS_FIRSTFRAME) {
+            rotz = ((rotz + vecz) & 0xFFF)
+            v0 += vecz
+            if (v0 >= 360deg || v0 <= -360deg) {
+                v0 = 0
+                rotz = rand(360deg)
+            }
+        }
+    }
+}
+
+state Robot_Walker { // S14
+    code(CycleLen, CycleOffs) {
+        CycleLen = CycleLen * 1s / 1.2s
+        CycleOffs = CycleOffs * 1s / 1.2s
+        trotx = 720deg
+        zindex = 40
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_TRACK_PATH_SIGN | FLAG_TRACK_PATH_ROT | FLAG_COLLIDABLE | FLAG_ROT_INWARDS | FLAG_ROT_Y
+        density = 0.1m
+        setanim(ROBOT_WALKER)
+        var RobotCycleLen, S4, S5, RobotReversePath
+        S4 = CycleLen >> 1
+        S5 = pathlen << 1
+        do {
+            v0 = time(CycleLen, CycleOffs)
+            RobotCycleLen = v0
+            pathprog = ((v0 * S5) / CycleLen)
+            RobotReversePath = 0
+            if (RobotCycleLen >= S4) {
+                RobotCycleLen -= S4
+                pathprog = ((0 - (pathlen + -1)) + (pathprog - pathlen))
+                RobotReversePath = 1
+            }
+            if (pathprog >= pathlen) {
+                pathprog = pathlen + -1
+            }
+            calcpath(abs(pathprog))
+            if (!(RobotCycleLen % 0.5s)) {
+                soundpitch((9.6 + rand(3.2)) * 58 >> 8)
+                sounddecay(0.313)
+                soundplay([fs40A], 0.3V)
+            }
+            playframe(RobotCycleLen << 8)
+        } while (1)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            if (e == EventSpinHit || e == EventJumpedOn || e == EventSlamHit) {
+                rejev()
+                sendevent(Event24, interrupter, 100.0)
+            }
+        }
+        accevcstate(RobotWalker_Fling, e == EventSlideHit || e == EventHitInvincible || e == EventFling)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+    }
+}
+
+state RobotWalker_Fling { // S15
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        troty &= 0xFFF
+        if (troty > 65deg && troty <= 90deg) troty = 65deg;
+        else if (troty > 90deg && troty <= 115deg) troty = 115deg;
+        else if (troty > 245deg && troty <= 270deg) troty = 245deg;
+        else if (troty > 270deg && troty <= 295deg) troty = 295deg;
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Dynamo_Background { // S16
+    stateflag 0x40001
+    statusc 0
+    code() {
+        vfx = (vfx & 0xFFFFFF00) | 6
+        x = 0
+        y = 0
+        z = 0
+        zindex = 2000
+        SetScale(0x146E, 0x103A, 0x1000)
+        sleepanim(0, BACKGROUND_COLOR)
+    }
+}
+
+state Shrinker { // S17
+    stateflag 0x40001
+    statusc 0
+    __transargs
+    code(ShrinkerTarget) {
+        interrupter = player -> creator
+        player -> interrupter = self
+        if (!(GLOBAL_126 || player -> statusc & 0x2 || player -> invincible)) {
+            sendevent(EventHit, interrupter, 100.0)
+            if (eventaccepted) {
+                if (!player -> invincible) {
+                    SetInvincible(4, frametime)
+                }
+            }
+            else {
+                GLOBAL_126 = self
+                movetolist(3.0)
+                do {
+                    player -> scalex = seek(player -> scalex, 0, spd(24.0))
+                    player -> scaley = seek(player -> scaley, 0, spd(24.0))
+                    player -> scalez = seek(player -> scalez, 0, spd(24.0))
+                    playnull()
+                } while (player -> scaley <= 0.5S)
+                vecy = 0
+                do {
+                    vecy = spd(vecy, 3.2)
+                    player -> scalex = seek(player -> scalex, 0, spd(vecy))
+                    player -> scaley = seek(player -> scaley, 0, spd(vecy))
+                    player -> scalez = seek(player -> scalez, 0, spd(vecy))
+                    playnull()
+                } until(player -> scaley <= 0.05S)
+                sendevent(Event12, player, 100.0)
+            }
+        }
+    }
+    trans {
+        once {
+            player = ShrinkerTarget
+        }
+        changestateif(Kill, player -> stateflag & 0x20)
+    }
+}
+
+state Bonus_Plaque { // S18
+    statusc 0
+    code() {
+        statusb = 0
+        zindex = 14
+        sleepanim(0, BONUS_PLAQUE)
+    }
+    trans {
+        once {
+            PlaqueBaseY = y
+        }
+        y = PlaqueBaseY + (sin((frametime << 6) & 0xFFF) * 0.1m >> 12)
+    }
+}
+
+state Kill { // S19
+    statusc 0
+    code(){ }
+}
+
+state Sleep { // S20
+    statusc 0
+    code() {
+        statusb = 0
+        playnull()
+    }
+}

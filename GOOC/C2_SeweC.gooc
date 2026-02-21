@@ -1,0 +1,360 @@
+#gool SeweC 12 3
+
+#include "goolstdlib.gooc"
+
+#anim BARREL          [Ba1aV] 1 1
+#anim DOOR            [Do1aV] 12 1
+#anim EEL             [Ee1aV] 25 1
+#anim EEL_ELECTRIFIED [Ee2aV] 25 1
+#anim FAN_MOTOR       [Fa1aV] 1 1
+#anim FAN_BLADE_A1    [Fa2aV] 1 1
+#anim FAN_BLADE_A2    [Fa2aV] 1 1
+#anim FAN_BLADE_B1    [Fa3aV] 1 1
+#anim FAN_BLADE_B2    [Fa5aV] 1 1
+
+#spawn S_DOOR         Door_Spawn
+#spawn S_FAN          Fan_Spawn
+#spawn S_FAN_FAST     Fan_Spawn
+#spawn S_FAN_BLADE    Fan_Blade
+#spawn S__4           Unused
+#spawn S__5           Unused
+#spawn S__6           Unused
+#spawn S__7           Unused
+#spawn S_EEL          Electric_Eel
+#spawn S_BARREL       Barrel_Init_____ // Trans not decompiled... MIPS.
+
+var mem1, FanBladeCount, BarrelAnchorPoint, PipeRadius, BarrelCycleLen, BarrelCycleOffs, BarrelAngle, BarrelArcSpan, BarrelZindexRight, BarrelZindexLeft, BarrelZindexThresh
+
+state Door_Spawn { // S0
+    statusc 0x22
+    code(ry) {
+        roty = ry
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        setanim(DOOR, 0)
+        changestate(Door_Open)
+    }
+}
+
+state Door_Open { // S1
+    statusc 0x22
+    code() {
+        statusb = 0
+        sounddecay(0.625)
+        SoundPitchDefault(58)
+        soundplay([ADoSA], 0.4V)
+        unless(v0 == mem1) {
+            playframe(0)
+        }
+        animframe -= spd(-25.0)
+        do {
+            playframe(animframe + spd(-25.0))
+        } while (animframe + spd(-25.0) >= 0)
+        if (animframe < 0) {
+            animframe = 0
+        }
+        sleep()
+    }
+     trans {
+        v0 = ((abs(degdist(atan2(player -> trans), GAMEDIR + 180deg))) < 90deg)
+        changestateif(Door_Close, distance(player, DIST_NO_Y) <= 4.0m || v0)
+    }
+}
+
+state Door_Close { // S2
+    statusc 0x22
+    code() {
+        sounddecay(0.625)
+        SoundPitchDefault(58)
+        soundplay([ADoSA], 0.4V)
+        if (v0) {
+            playframe(11.0)
+        }
+        playframes(DOOR, 0.0, 11.0)
+        statusb = FLAG_INVISIBLE
+        sleep()
+    }
+    trans {
+        v0 = ((abs(degdist(atan2(player -> trans), GAMEDIR + 180deg))) < 90deg)
+        changestateif(Door_Open, (distance(player, DIST_NO_Y) >= 4.1m + 1) && !v0)
+        mem1 = v0
+    }
+}
+
+state Fan_Spawn { // S3
+    code(ry, CycleLen, CycleOffs) {
+        CycleLen = CycleLen * 1s / 1.2s
+        CycleOffs = CycleOffs * 1s / 1.2s
+        if (spawn == S_FAN_FAST) {
+            SetScale(0.8333S)
+            if (ry == 0) {
+                settrans(CheckPlayerStatus)
+            }
+        }
+
+        FanBladeCount = 3.0
+        v0 = 360deg / (FanBladeCount >> 8)
+        roty = ry
+        rotz = roty + 90deg
+        stalltime = 0
+
+        do (var i = 0) {
+            spawn(SeweC, S_FAN_BLADE, 1, rotz, i)
+            rotz += v0
+            i += 1.0
+        } while (i < FanBladeCount)
+
+        rotz = roty + 90deg
+
+        if (spawn == S_FAN_FAST) {
+            save(x, y, z, ry) {
+                save(rotx, roty, rotz, vecx, vecy, vecz) {
+                    SetRot(0, ry, 0)
+                    SetVec(x, y, z)
+                    vectransf(vvec, vtrans, 2.0m, 0, 0)
+                }
+                spawn(13, 2, 1, ry, 4.0s, 0, 0, 3.0m) // ScrbC 2
+                creator = misc
+            }
+        }
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        while (child) {
+            rotx = ((time(CycleLen, CycleOffs) << 12) / CycleLen)
+            playanim(0, FAN_MOTOR)
+        }
+        changestate(STATE_5)
+    }
+    event(e, a) {
+        if ((e == EventFling && frametime - statetime >= 1.0s) && interrupter) {
+            accev()
+            sendevent(Event14, child, interrupter)
+            if (eventaccepted) {
+                statetime = frametime
+            }
+        }
+        if (e == Event26) {
+            accev()
+            sendevent(Event12, creator)
+        }
+    }
+}
+
+sub CheckPlayerStatus() {
+    sendeventif(Event24, player, abs(z - player -> z) < 0.4m 
+        && distance(player) < 6.0m
+        && !(player -> statusa & FLAG_GROUNDLAND)
+        && stalltime == 3.0, 100.0)
+}
+
+state Fan_Blade { // S4
+    stateflag 0x2000001
+    statusc 0
+    __transargs
+    code(BladeRotZ, BladeID){
+        parent -> stalltime += 1.0
+        zindex = creator -> zindex
+        rotz = creator -> rotz
+        roty = creator -> roty
+        if (var Rand = rand(2); !Rand) {
+            if (creator -> spawn == S_FAN) {
+                setanim(FAN_BLADE_A1)
+            }
+            else {
+                setanim(FAN_BLADE_B1)
+            }
+        }
+        else if (Rand == 1) {
+            if (creator -> spawn == S_FAN) {
+                setanim(FAN_BLADE_A2)
+            }
+            else {
+                setanim(FAN_BLADE_B2)
+            }
+        }
+        if (creator -> spawn == S_FAN) {
+            if (var FanBladeID = BladeID; !FanBladeID) {
+                soundpitch(2.903)
+                sounddecay(0.625)
+                soundplay([FSlSA], 0.4V)
+            }
+        }
+        else {
+            if (var FanBladeID = BladeID; !FanBladeID) {
+                sounddecay(0.665)
+                soundpitch(4.563)
+                soundplay([FSlSA], 0.3V)
+            }
+            else if (FanBladeID == 1.0) {
+                sounddelay(6)
+                sounddecay(0.665)
+                soundpitch(4.563)
+                soundplay([FSlSA], 0.3V)
+            }
+            else if (FanBladeID == 2.0) {
+                sounddelay(13)
+                sounddecay(0.665)
+                soundpitch(4.563)
+                soundplay([FSlSA], 0.3V)
+            }
+        }
+        sleepframe(0)
+    }
+    event(e, a) {
+        if (e == Event14 && animseq) {
+            interrupter = a[0]
+            sendevent(Event12, interrupter, 0)
+            accevcstate(STATE_6)
+        }
+        if (e == EventHitInvincible) {
+            accevcstate(STATE_6)
+        }
+    }
+    trans {
+        rotx = creator -> rotx + BladeRotZ
+        if (abs(z - player -> z) < 4.0m) {
+            /*getvert(vvec, self, 0)
+            v0 = pointclip(vec, player)
+            getvert(vvec, self, 1.0)
+            v0 += pointclip(vec, player)*/
+            sendeventif(Event24, player, v0, 100.0)
+        }
+    }
+}
+
+state STATE_5 { // S5
+    stateflag 0x21
+    statusc 0x22
+    code(){
+        sendevent(Event12, creator, 0)
+    }
+}
+
+state STATE_6 { // S6
+    stateflag 0x23
+    statusc 0x22
+    code(){
+        parent -> stalltime += -1.0
+    }
+}
+
+state Barrel_Init { // S7
+    statusc 0x12
+    code(Angle, ArcSpan, AnchorPoint, Radius, CycleLen, CycleOffs, ZindexRight, ZindexLeft, ZindexThreshold) {
+        BarrelAngle = Angle
+        BarrelArcSpan = ArcSpan 
+        BarrelAnchorPoint = AnchorPoint
+        PipeRadius = Radius
+        BarrelCycleLen = CycleLen * 1s / 1.2s
+        BarrelCycleOffs = CycleOffs * 1s / 1.2s
+        BarrelZindexRight = ZindexRight
+        BarrelZindexLeft = ZindexLeft
+        BarrelZindexThresh = ZindexThreshold
+        SetVec(x, y, z)
+        troty = 0
+        density = 0.150m
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_INWARDS
+        changestate(Barrel)
+    }
+}
+
+state Barrel { // S8
+    stateflag 0x5
+    statusc 0
+    code(){
+        sleepanim(0, BARREL)
+    }
+    event(e, a) {
+        accevcstate(Barrel_Explode, e == EventHitInvincible || e == EventHit || e == EventSpinHit || e == EventSlideHit || e == EventJumpedOn || e == EventSlamHit)
+    }
+}
+
+
+state Barrel_Explode { // S9
+    stateflag 0x2
+    statusc 0
+    code() {
+        SoundPitchDefault(58)
+        sounddecay(0.75)
+        soundplay([tnt0A], 1.0V)
+        soundsetup(0, voice, 5)
+        spawn(9, 4, 1, getins(SetParticleColor_BarrelExplosion), 0)
+        playnull()
+    }
+}
+
+sub SetParticleColor_BarrelExplosion() {
+    if (var r = rand(5); !r) {
+        SetColor1(0x4B, 0x4B, 0x00)
+    }
+    else if (r == 1) {
+        SetColor1(0x00, 0x4B, 0x00)
+    }
+    else if (r == 2) {
+        SetColor1(0x19, 0x2F, 0x06)
+    }
+    else if (r == 3) {
+        SetColor1(0x4B, 0x33, 0x00)
+    }
+    else if (r == 4) {
+        SetColor1(0x00, 0x4B, 0x2C)
+    }
+    SetScale(2.5S)
+}
+
+state Electric_Eel { // S10
+    statusc 0x12
+    __transargs
+    code(EelCycleLen, EelCycleOffs, ElectrifiedDur) {
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 24;
+        spawn(9, 42, 1, 0, 0x333)
+        spawn(9, 42, 1, 1.0, 0x333)
+        statusb = FLAG_ROT_Y
+        trotx = 180deg
+        animframe = 0
+        do {
+            animframe = ((animframe + 1.0) % 25.0)
+            playframe()
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventTriggered) {
+            accev()
+            EelCycleOffs = EelCycleLen - time(EelCycleLen)
+        }
+        if (e == Event26) {
+            accev()
+            GLOBAL_136 = 0
+        }
+    }
+    trans {
+        setanim(EEL)
+        vecx = CAMTRANSX
+        vecy = CAMTRANSY
+        vecz = CAMTRANSZ
+        unless(abs(degdist(atan2(self, vecx), CAMROTY)) < 90deg) {
+            return
+        }
+        troty = atan2(player -> trans)
+        GLOBAL_136 = 0
+        var CycleLen = time((EelCycleLen * 1s / 1.2s), (EelCycleOffs * 1s / 1.2s))
+        var PhaseLen = 0
+        if (CycleLen >= 0 && CycleLen <= 7) {
+            PhaseLen = CycleLen
+            if (var WaterFlash = 0 + ((PhaseLen * 7) / 7); !((WaterFlash >> 1) & 1)) {
+                GLOBAL_136 = 0x8080
+                setanim(EEL_ELECTRIFIED)
+                soundpitch(3.263)
+                soundplay([EelaA], 1V)
+            }
+        }
+        else if (CycleLen >= 7 && CycleLen <= ElectrifiedDur + 7) {
+            PhaseLen = CycleLen + -7
+            var WaterFlash = 0 + ((PhaseLen * 7) / ((ElectrifiedDur + 7) + -7))
+            setanim(EEL_ELECTRIFIED)
+            GLOBAL_136 = 0x8080
+            sendeventif(EventShock2, player, player -> statusa & 0x800000 && GLOBAL_119 & 2 && !(player -> stateflag & 32) && !player -> invincible, 100.0)
+        }
+    }
+}
+
+

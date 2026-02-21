@@ -1,0 +1,490 @@
+#gool PlanC 38 3
+
+#include "goolstdlib.gooc"
+
+#anim PLANT_WAIT             [Ep1nV] 42 1
+#anim PLANT_SPIT             [Ep2nV] 25 1
+#anim PLANT_HIDE             [Ep3nV] 18 1
+#anim PLANT_HIDDEN           [Ep4nV] 15 1
+#anim PLANT_BOUNCE           [Ep7nV] 07 1
+#anim PLANT_ROOTS            [Ep5nV] 11 1
+#anim PLANT_GRENADE          [Ep6nV] 07 1
+#anim PLANT_EXPLODE          [Ep8nV] 10 1
+
+#anim RIVER_PLANT_WAIT       [JuPpV] 22 1
+#anim RIVER_PLANT_EAT        [JuppV] 32 1
+#anim RIVER_PLANT_SWALLOW    [Ju3pV] 51 1
+
+#spawn S_SPORE_PLANT         Plant_Init
+#spawn S_GRENADE             Grenade_Spawn
+#spawn S_ROOTS               Plant_Roots_Spawn
+#spawn S_3                   Unused
+#spawn S_RIVER_PLANT         RiverPlant_Init__ // Broken, dont use
+
+event EventHit               => state Plant_Squash
+event EventHitInvincible     => state Plant_Squash
+event EventFling             => state Plant_Squash
+event EventSlamHit           => state Plant_Squash
+
+#include "FruiC.gooh"
+
+var PlantHideZOffs, PlantAttackZOffs, PlantTargetScale, PlayerInRange, PlantSpitInterval, PlantCanSpit, PrevPathpoint, mem8
+
+state Plant_Init { // S0
+    code(AttackZ, HideZ, SpitInterval) {
+        PrevPathpoint = -1.0
+        PlantAttackZOffs = AttackZ
+        PlantSpitInterval = SpitInterval >> 8
+        PlantCanSpit = true
+        PlantHideZOffs = HideZ
+        SetScale(0.8S)
+        zindex = 24
+        density = 0.1m
+        spawn(PlanC, S_ROOTS, 1)
+        creator = misc
+        changestate(Plant_Wait)
+    }
+}
+
+state Plant_Wait { // S1
+    statusc 0
+    code() {
+        sleepframes(PLANT_WAIT, 0.0, 41.0)
+    }
+    event(e, a) {
+        accevcstate(Plant_Fling, e == EventSpinHit && player -> stateflag & (0x20000000))
+    }
+    trans {
+        once {
+            statusb = FLAG_ROT_Y | FLAG_COLLIDABLE | FLAG_SOLID_SIDES | FLAG_SOLID_TOP
+            trotx = 360deg
+        }
+        sendevent(EventHit, collider, 100.0)
+
+        v0 = distance(player, DIST_EXACT | DIST_NO_Y)
+        changestateif(Plant_Hide, v0 < PlantHideZOffs)
+
+        if (PlantCanSpit || ((frametime - statetime) >= (PlantSpitInterval * 12))) {
+            CheckPlayerStatus()
+        }
+        sendevent(EventHit, collider, 100.0)
+    }
+}
+
+sub CheckPlayerStatus() {
+    changestateif(Plant_Spit, !(player -> stateflag \ 0x20000020) && v0 > 6m && v0 < PlantAttackZOffs && pathlen > 1.0 && !(player -> stateflag & 32) && !player -> invincible)
+    if (v0 > PlantAttackZOffs) {
+        PlantCanSpit = true
+    }
+}
+
+state Plant_Hide { // S2
+    statusc 0
+    code() {
+        while (animseq == getanim(PLANT_WAIT) && animframe <= 40.0) {
+            playframe(seek(animframe, 41.0, 2.0))
+        }
+        PlantCanSpit = true
+        sendevent(EventTriggered, creator)
+        sounddecay(0.625)
+        SoundPitchDefault(58)
+        soundplay([PPlAA], 0.4V)
+        playframes(PLANT_HIDE, 0.0, 18.0)
+        sub_120()
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            unless(e) {
+                sendevent(EventBounce, interrupter, 15.5m)
+                if (misc) {
+                    soundpitch(3.625)
+                    soundplay([bnc0A], 0.5V)
+                    rejevcstate(Plant_Bounce)
+                }
+            }
+        }
+        accevcstate(Plant_Fling, e == EventSpinHit && player -> stateflag & (0x20000000))
+    }
+    trans {
+        misc = collider
+        if (misc) {
+            misc = (collider -> statusa & FLAG_GROUNDLAND) || (collider -> vely < 0)
+        }
+        if(!misc) {
+            misc = 0
+        }
+        sendeventif(EventHit, collider, misc, 100.0)
+        troty = atan2(player -> trans)
+    }
+}
+
+sub sub_120() {
+    while (distance(player, DIST_EXACT | DIST_NO_Y) < PlantHideZOffs) {
+        playframes(PLANT_HIDDEN, 0.0, 14.0)
+    }
+    sendevent(Event14, creator, 0)
+    playframesback(PLANT_HIDE, 17.0, 0.0)
+    changestate(Plant_Wait)
+}
+
+state Plant_Bounce { // S3
+    statusc 0
+    code() {
+        playanim(0, PLANT_BOUNCE)
+        playanim(1, PLANT_BOUNCE)
+        playanim(2, PLANT_BOUNCE)
+        playanim(3, PLANT_BOUNCE)
+        playanim(3, PLANT_BOUNCE)
+        playanim(4, PLANT_BOUNCE)
+        playanim(5, PLANT_BOUNCE)
+        sub_120()
+    }
+    event => state Plant_Hide
+}
+
+state Plant_Spit { // S4
+    stateflag 0x81
+    statusc 0x0
+    code() {
+        while (animseq == getanim(PLANT_WAIT) && animframe <= 40.0) {
+            playframe(seek(animframe, 41.0, 2.0))
+        }
+        PlantCanSpit = false
+        trotx = 720deg
+        {
+            var pathpoint = -1.0
+            do {
+                pathpoint = (rand(0, (pathlen + -1.0) >> 8) << 8) + 1.0
+            } while (!(pathpoint != PrevPathpoint || pathlen <= 2.0))
+
+            PrevPathpoint = pathpoint
+        }
+        calcpath(PrevPathpoint, vvec)
+        troty = atan2(vecx)
+        playframes(PLANT_SPIT, 0.0, 5.0)
+        spawn(PlanC, S_GRENADE, 1, vecx, vecy, vecz)
+        soundpitch(3.625)
+        sounddecay(0.625)
+        soundplay([PSpAA], 1.0V)
+        playframes(PLANT_SPIT, 6.0, 24.0)
+        changestate(Plant_Wait)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+    event => state Plant_Wait
+}
+
+state Plant_Squash { // S5
+    stateflag 0x21
+    statusc 0x32
+    code(h) {
+        if (spawn == S_SPORE_PLANT) {
+            spawn(9, 4, 1, getins(SetParticleColor2), 1)
+        }
+        else {
+            spawn(9, 4, 1, getins(SetParticleColor1), 1)
+        }
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        if (spawn == S_SPORE_PLANT) {
+            spawn2(FruiC, FruiC_S_FRUIT_HOP, 1, 80.0, 0)
+            playframes(PLANT_EXPLODE, 0.0, 9.0)
+        }
+        else {
+            playframe()
+        }
+    }
+}
+
+sub SetParticleColor1() {
+    if (var r = rand(3); !r) {
+        SetColor1(0x54, 0x6B, 0x0F)
+    }
+    else if (r == 1) {
+        SetColor1(0x0C, 0x80, 0x00)
+    }
+    else if (r == 2) {
+        SetColor1(0x49, 0x10, 0x80)
+    }
+}
+
+sub SetParticleColor2() {
+    if (var r = rand(3); !r) {
+        SetColor1(0x84, 0x47, 0x00)
+    }
+    else if (r == 1) {
+        SetColor1(0x0C, 0x80, 0x00)
+    }
+    else if (r == 2) {
+        SetColor1(0x49, 0x10, 0x80)
+    }
+}
+
+state Plant_Fling { // S6
+    stateflag 0x30
+    statusc 0x12
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Grenade_Spawn { // S7
+    statusc 0x32
+    code(vx, vy, vz) {
+        zindex = 24
+        getvert(0, creator, 0)
+        statusb = FLAG_SOLID_GROUND | FLAG_PHYSICS_ENGINE
+        groundy = vy
+        velx = 0
+        vely = -(((y - groundy) * 25) / 12 + -14.4m)
+        velz = 0
+        {
+            var StartX = x, StartY = y, StartZ = z, TargetX = vx, TargetY = vy, TargetZ = vz
+            troty = atan2(TargetX)
+            setanim(PLANT_GRENADE)
+            do (var i = 1.0) {
+                x = StartX + (((TargetX - StartX) * (i >> 8)) / 12)
+                z = StartZ + (((TargetZ - StartZ) * (i >> 8)) / 12)
+                roty = CAMROTY
+                rotx = CAMROTX
+                rotz = roty
+                vely = spd(vely, -60m)
+                playanim(0, PLANT_GRENADE)
+                i += 1.0
+            } while (i <= 12.0)
+        }
+        statusb = 0x100000
+        stalltime = 0
+        playframe(animframe, 0.64s)
+        rotx = 0
+        roty = 0
+        rotz = 0
+        spawn(9, 40, 1, getins(GrenadeExColorSelect), 1)
+        SetScale(0.7S, 1.0S, 0.7S)
+        spawn(9, 46, 1, 0x66, 0x66, 6, 0, 0)
+        while (child) {
+            sendeventif(EventExplosiveSeed, player, distance(player, DIST_EXACT) < 1.73m, 100.0)
+            playnull()
+        }
+    }
+}
+
+sub GrenadeExColorSelect() {
+    SetVel(0, 0, 0)
+    x = creator -> x
+    z = creator -> z
+    y = creator -> y + -0.75m
+    if (var r = rand(6); !r) {
+        SetColor1(0x12, 0x15, 0x6)
+    }
+    else if (r == 1) {
+        SetColor1(0x3B, 0x3F, 0x1A)
+    }
+    else if (r == 2) {
+        SetColor1(0x30, 0x1F, 0x8)
+    }
+    else if (r == 3) {
+        SetColor1(0x74, 0x3A, 0x6)
+    }
+    else if (r == 4) {
+        SetColor1(0x74, 0x5C, 0x25)
+    }
+    else if (r == 5) {
+        SetColor1(0x30, 0x26, 0x0F)
+    }
+    SetScale(1.5S)
+}
+
+state Plant_Roots_Spawn { // S8
+    statusc 0x32
+    code() {
+        zindex = parent -> zindex
+        PlantHideZOffs = getfield(parent, 64.0)
+        SetScale(0.6S, 1.0S, 0.6S)
+        setanim(PLANT_ROOTS)
+        density = 0.1m
+        changestate(Plant_Roots)
+    }
+}
+
+state Plant_Roots { // S9
+    statusc 0x32
+    code(){
+        statusb = 0
+        do {
+            animframe = seek(animframe, 0, 1.0)
+            playframe()
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventSpinHit && player -> stateflag & (0x20000000)) {
+            sendevent(EventSpinHit, parent, a[0])
+            statusc &= ~0x32
+            accevcstate(Plant_Fling)
+        }
+    }
+    trans {
+        changestateif(Plant_Killed, parent -> stateflag & 32)
+        changestateif(Plant_Roots_Spike, distance(player, DIST_EXACT | DIST_NO_Y) < PlantHideZOffs)
+    }
+}
+
+state Plant_Roots_Spike { // S10
+    statusc 0x32
+    code() {
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        do {
+            animframe = seek(animframe, 10.0, 1.0)
+            playframe()
+        } while (1)
+    }
+     trans {
+        if (parent -> stateflag & 32) {
+            changestate(Plant_Killed)
+        }
+        else {
+            sendevent(Event24, collider, 100.0)
+        }
+        changestateif(Plant_Roots, distance(player, DIST_EXACT | DIST_NO_Y) >= PlantHideZOffs)
+    }
+    event => state Plant_Roots
+}
+
+state RiverPlant_Init { // S11
+    statusc 0x2
+    code(HideZ) {
+        PlantAttackZOffs = 4.3m
+        PlantHideZOffs = HideZ
+        if (distance(player, DIST_EXACT | DIST_NO_Y) < PlantAttackZOffs) {
+            entitysetspawn(0)
+            return
+        }
+        zindex = 24
+        density = 0.3m
+        SetScale(0)
+        PlantTargetScale = 0x1999
+        statusb = FLAG_INVISIBLE
+        changestate(RiverPlant_Hide)
+    }
+}
+
+state RiverPlant_Hide { // S12
+    statusc 0
+    code() {
+        while (scalex || scaley || scalez) {
+            scalex = seek(scalex, 0, 0.16S)
+            scaley = seek(scaley, 0, 0.10S)
+            scalez = seek(scalez, 0, 0.16S)
+            playanim(0, RIVER_PLANT_WAIT)
+        }
+        statusb = FLAG_INVISIBLE
+        sleepanim(0, RIVER_PLANT_WAIT)
+    }
+    event(e, a) {
+        rejevret(e == EventHitInvincible && interrupter == player && player -> stateflag & 0x20000000)
+        accevcstate(Plant_Fling, e == EventSpinHit || e == EventSlideHit || e == EventFling)
+        accevcstate(Plant_Squash, e == EventJumpedOn || e == EventSlamHit || e == EventHit || e == EventHitInvincible)
+    }
+    trans {
+        changestateif(RiverPlant_Appear, distance(player) < PlantHideZOffs)
+    }
+}
+
+state RiverPlant_Appear { // S13
+    statusc 0
+    code(){
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y
+        trotx = 360deg
+        animseq = getanim(RIVER_PLANT_WAIT)
+        do {
+            playframes(RIVER_PLANT_WAIT, 0.0, 21.0)
+            if (!!rand(6)) {
+                playframesback(20.0, 1.0)
+            }
+        } while (1)
+    }
+    trans {
+        if (distance(player) < PlantHideZOffs + 1.0m) {
+
+            scalex = seek(scalex, PlantTargetScale, 0.16S)
+            scaley = seek(scaley, PlantTargetScale, 0.10S)
+            scalez = seek(scalez, PlantTargetScale, 0.16S)
+
+            troty = atan2(player -> trans)
+            changestateif(RiverPlant_Attack, player -> y > y + -2m && player -> y < y + 3m && (!(player -> stateflag & 32) && !player -> invincible) && distance(player, DIST_EXACT | DIST_NO_Y) < PlantAttackZOffs)
+            sendeventif(EventHit, collider, STATUS_PLAYER_D_COLLIDER, 100.0)
+        }
+        else {
+            changestate(RiverPlant_Hide)
+        }
+    }
+    event => state RiverPlant_Hide
+}
+
+state RiverPlant_Attack {  // S14
+    stateflag 0x81
+    statusc 0
+    code() {
+        trotx = 720deg
+        statusb &= ~FLAG_ROT_Y
+        setanim(RIVER_PLANT_EAT)
+        PlayerInRange = true
+        playframes(0.0, 6.0)
+        PlayerInRange = true
+        soundpitch(3.625)
+        sounddecay(0.625)
+        soundplay([MsmcA], 0.5V)
+        playframes(7.0, 11.0)
+        statusb &= ~FLAG_ROT_Y
+        if (mem8) { // placeholder
+            playframes(RIVER_PLANT_SWALLOW, 0.0, 50.0)
+        }
+        else {
+            playframes(11.0, 31.0)
+        }
+        statusb |= FLAG_ROT_Y
+        changestate(RiverPlant_Appear)
+    }
+    trans { // unfinished, missing pointclip stuff
+        once {
+            mem8 = false
+            PlayerInRange = false
+        }
+        scalex = seek(scalex, PlantTargetScale, 0.16S)
+        scaley = seek(scaley, PlantTargetScale, 0.10S)
+        scalez = seek(scalez, PlantTargetScale, 0.16S)
+        roty = atan2(player -> trans)
+
+        if (!(player -> stateflag & 32) && !(player -> invincible)) {
+            if (PlayerInRange) {
+                sendevent(Event20, player, 55)
+                if (misc) {
+                    mem8 = true
+                }
+                if (STATUS_PLAYER_D_COLLIDER) {
+                    sendevent(Event20, player, 55) {
+                        if (misc) {
+                            mem8 = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+    event => state RiverPlant_Hide
+}
+
+state Plant_Killed { 
+    stateflag 0
+    statusc 0
+    code() { }
+
+}

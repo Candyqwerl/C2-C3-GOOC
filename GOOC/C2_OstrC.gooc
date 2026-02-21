@@ -1,0 +1,142 @@
+#gool OstrC 30 3
+
+#include "goolstdlib.gooc"
+
+#anim OSTRICH_LEGS1      [Ol1bV] 11 1
+#anim OSTRICH_LEGS2      [Ol2bV] 15 1
+#anim OSTRICH_BODY1      [Ob1bV] 11 1
+#anim OSTRICH_BODY2      [Ob2bV] 15 1
+
+#spawn S_OSTRICH         Ostrich_Spawn
+#spawn S_OSTRICH_BODY    Ostrich_Body
+
+var OstrichBodyAnim, mem2
+
+state Ostrich_Spawn { // S0
+    stateflag 0x80000201
+    code() {
+        zindex = 24
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES
+        roty = 270deg
+        if (entitygetstate(2)) {
+            spawn(OstrC, S_OSTRICH_BODY, 1, 2.0)
+            creator = child
+            troty = roty
+            changestate(Ostrich_Burrow_Head, 0)
+        }
+        spawn(OstrC, S_OSTRICH_BODY, 1, 0)
+        creator = child
+        changestate(Ostrich_Reset, 0)
+    }
+}
+
+state Ostrich_Wait { // S1
+    stateflag 0x80000201
+    code(OstrichDead) {
+        OstrichBodyAnim = getanim(OSTRICH_BODY1)
+        if (OstrichDead) {
+            playframesback(10.0, 0.0)
+        }
+        sleepanim(0, OSTRICH_LEGS1)
+    }
+    event(e, a) {
+        accevcstate(Ostrich_Burrow_Head, e == Event14)
+    }
+    trans {
+        once {
+            statusb &= ~FLAG_ROT_Y
+        }
+        var S3 = distance(player, DIST_NO_Y)
+        changestateif(Ostrich_Reset, S3 > 7.5m, 0)
+        changestateif(Ostrich_Burrow_Head, S3 < 6m && player -> statusa & FLAG_GROUNDLAND && player -> y < y + 3m, 1.0)
+    }
+}
+
+state Ostrich_Burrow_Head {  // S2
+    stateflag 0x80000201
+    code(OstrichDead){
+        entitysetstate(1)
+        sendevent(0, creator, 0)
+        OstrichBodyAnim = getanim(OSTRICH_BODY1)
+        setanim(OSTRICH_LEGS1)
+        if (OstrichDead) {
+            setanim(OSTRICH_LEGS1, 0)
+            do {
+                playframe(animframe + 1.0)
+            } while (animframe + 1.0 < 10.0)
+        }
+        sleepframe(10.0)
+    }
+}
+state Ostrich_Reset { // S3
+    stateflag 0x80000201
+    code(OstrichDead) {
+        setanim(OSTRICH_LEGS2)
+        OstrichBodyAnim = getanim(OSTRICH_BODY2)
+        troty = roty
+        if (OstrichDead) {
+            animframe = 15.0
+        } 
+        else {
+            animframe = -1.0
+        }
+        do (var S3, S4) {
+            S3 = distance(player, DIST_NO_Y)
+            S4 = !(abs(degdist(troty, atan2(player -> trans))) < 90deg)
+            if (S3 < 7.5m || (player -> stateflag & 32)) {
+                animframe = seek(animframe, 0.0, 1.0)
+                unless(animframe) {
+                    playframe()
+                    changestate(Ostrich_Wait, 0)
+                }
+            }
+            else {
+                statusb |= FLAG_ROT_Y
+                animframe = seek(animframe, 14.0, 1.0)
+            }
+            playframe()
+        } while (1)
+    }
+}
+
+inline sub SetCreatorAnim() {
+    do {
+        animseq = getfield(creator, 64.0)
+        animframe = creator -> animframe
+        playframe()
+    } while (1)
+}
+
+state Ostrich_Body { // S4
+    stateflag 0x80000201
+    code(OstrichDead) {
+        trotx = 360deg
+        zindex = creator -> zindex
+        changestateif(Ostritch_Sleep, OstrichDead == 2.0)
+        SetCreatorAnim()
+    }
+    event(e, a) {
+        unless(e) {
+            rejevcstate(Ostritch_Sleep)
+        }
+    }
+    trans {
+        getvert(0, creator, 0)
+        statusb = creator -> statusb
+        statusb |= FLAG_COLLIDABLE | FLAG_SOLID_SIDES | FLAG_SOLID_TOP
+        troty = (degseek(creator -> troty, atan2(player -> trans), 900deg))
+    }
+}
+
+state Ostritch_Sleep { // S5
+    trans => state Ostrich_Body
+    stateflag 0x80000201
+    statusc 0x2
+    code(){
+        sendevent(Event14, creator, 1.0)
+        SetCreatorAnim()
+    }
+    event(e, a) {
+        accevcstate(Ostrich_Body, e == EventBounce)
+    }
+}

@@ -1,0 +1,298 @@
+#gool APusC 56 3
+
+#include "goolstdlib.gooc"
+
+#anim ASS_PUSH           [AP1gV] 9 1
+#anim ASS_PEEK           [AP2gV] 31 1
+#anim ASS_KNOCKED_BACK   [AP3gV] 8 1
+#anim ASS_STEP_FORWARD   [AP4gV] 13 1
+#anim ASS_STAND          [AP5gV] 7 1
+#anim ASS_FALL           [AP6gV] 10 1
+
+#spawn S_ASSPUSHER       AssPusher_Init
+
+var AssPushCooldown, AssPathprog, AssPushState, AssCurrentPathDir, obj, AssDefaultPathDir
+
+state AssPusher_Init { // S0
+    statusc 0
+    code(PathStartPoint, ID, DefaultDir) {
+        zindex = 35
+        obj = ID
+        AssDefaultPathDir = DefaultDir
+        AssPushCooldown = 0
+        AssPushState = 0
+        AssCurrentPathDir = 0
+        trotx = 360deg
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y
+        density = 0.1m
+        pathprog = PathStartPoint
+        calcpath(pathprog)
+        if (AssDefaultPathDir) {
+            troty = 91deg
+        }
+        else {
+            troty = -89deg
+        }
+        roty = troty
+        rotz = troty
+        AssRecalcDir()
+        roty = troty
+        rotz = troty
+        playanim(0, ASS_PEEK)
+        changestate(AssPusher_Peek)
+    }
+}
+
+sub sub_24() {
+    if (AssPushCooldown) {
+        if (frametime >= AssPushCooldown) {
+            AssPushCooldown = 0
+            sendevent(EventBounce, player)
+        }
+    }
+}
+
+sub AssRecalcDir() {
+    if (abs(degdist(troty, atan2(player -> trans))) >= 105deg) {
+        if (AssCurrentPathDir) {
+            AssCurrentPathDir = 0
+            if (AssDefaultPathDir) {
+                troty = troty + 178deg & 0xFFF
+            }
+            else {
+                troty = troty + 182deg & 0xFFF
+            }
+        }
+        else {
+            AssCurrentPathDir = 1
+            if (AssDefaultPathDir) {
+                troty = troty + -178deg & 0xFFF
+            }
+            else {
+                troty = troty + -182deg & 0xFFF
+            }
+        }
+    }
+}
+
+state AssPusher_Peek { // S1
+    statusc 0
+    code() {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y
+        playframes(ASS_PEEK, 0.0, 30.0)
+        changestate(AssPusher_Push)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            accevcstate(STATE_5, e == EventSlideHit || e == EventSpinHit)
+            accevcstate(STATE_5, (e == EventJumpedOn || e == EventSlamHit) && player -> y - y >= 3.8m)
+            rejevret(e == EventJumpedOn || e == EventSlamHit)
+        }
+        accevcstate(AssPusher_Fling, e == EventHitInvincible)
+    }
+    trans {
+        sub_24()
+        AssRecalcDir()
+    }
+}
+
+state AssPusher_Push { // S2
+    stateflag 0x10001
+    statusc 0
+    code(){
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        soundpitch(3.263)
+        sounddecay(0xFF)
+        soundplay([MBLyA], 1.0V)
+        playframes(ASS_PUSH, 0.0, 8.0)
+        if (AssPushState) {
+            if ((AssCurrentPathDir && !(pathprog >> 8)) || (!AssCurrentPathDir && (pathprog >> 8) >= (pathlen >> 8) + -1)) {
+                AssPushState = 0
+                changestate(AssPusher_Peek)
+            }
+            AssPushState = 0
+            changestate(AssPusher_Step)
+        }
+        changestate(AssPusher_Peek)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            if (e == EventSlideHit || e == EventSpinHit) {
+                accev()
+                if (!AssPushState && !AssPushCooldown) {
+                    AssPushState = 1
+                }
+            }
+        }
+        accevcstate(AssPusher_Fling, e == EventHitInvincible)
+        rejevret(e == EventJumpedOn || e == EventSlamHit)
+    }
+    trans {
+        once {
+            AssPushState = 0
+        }
+        sub_24()
+        AssRecalcDir()
+        if (collider == player && !AssPushState && !AssPushCooldown) {
+            AssPushState = 1
+        }
+        if (AssPushState == 1) {
+            AssPushState = 2
+            if (!AssPushCooldown) {
+                sendevent(Event32, player, roty, 9.0m)
+                AssPushCooldown = frametime + 10
+            }
+        }
+    }
+}
+
+state AssPusher_Step { // S3
+    stateflag 0x10001
+    statusc 0
+    code(){
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        playframes(ASS_STEP_FORWARD, 0.0, 12.0)
+        if (AssCurrentPathDir) {
+            pathprog = AssPathprog + -1.0
+        }
+        else {
+            pathprog = AssPathprog + 1.0
+        }
+        calcpath(pathprog)
+        tpc = getins(sub_218)
+        playanim(0, ASS_STAND)
+        playanim(1, ASS_STAND)
+        playanim(2, ASS_STAND)
+        playanim(3, ASS_STAND)
+        playanim(4, ASS_STAND)
+        playanim(5, ASS_STAND)
+        playanim(6, ASS_STAND)
+        changestate(AssPusher_Push)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            rejevret(e == EventSlideHit || e == EventSpinHit)
+        }
+        accevcstate(AssPusher_Fling, e == EventHitInvincible)
+        rejevret(e == EventJumpedOn || e == EventSlamHit)
+    }
+    trans {
+        once {
+            AssPathprog = pathprog
+            setanim(ASS_STEP_FORWARD, 0)
+        }
+        v0 = (((animframe + 1.0) << 8) / 13.0)
+        if (AssCurrentPathDir) {
+            v0 = -v0
+        }
+        pathprog = AssPathprog + v0
+        calcpath(pathprog)
+        sub_24()
+    }
+}
+
+sub sub_218() {
+    sub_24()
+}
+
+state AssPusher_KnockBack { // S4
+    stateflag 0x10001
+    statusc 0
+    code(){
+        statusb = FLAG_COLLIDABLE | FLAG_SOLID_SIDES | FLAG_SOLID_TOP
+        playanim(0, ASS_KNOCKED_BACK)
+        playanim(1, ASS_KNOCKED_BACK)
+        playanim(2, ASS_KNOCKED_BACK)
+        playanim(3, ASS_KNOCKED_BACK)
+        playanim(4, ASS_KNOCKED_BACK)
+        playanim(5, ASS_KNOCKED_BACK)
+        playanim(6, ASS_KNOCKED_BACK)
+        playanim(7, ASS_KNOCKED_BACK)
+        if (AssCurrentPathDir) {
+            pathprog = AssPathprog + 1.0
+        }
+        else {
+            pathprog = AssPathprog + -1.0
+        }
+        calcpath(pathprog)
+        changestate(AssPusher_Peek)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            rejevret(e == EventSlideHit || e == EventSpinHit)
+        }
+        accevcstate(AssPusher_Fling, e == EventHitInvincible)
+        rejevret(e == EventJumpedOn || e == EventSlamHit)
+    }
+    trans {
+        once {
+            AssPathprog = pathprog
+            setanim(ASS_KNOCKED_BACK, 0)
+        }
+        v0 = (((animframe + 1.0) << 8) >> 11)
+        if (!AssCurrentPathDir) {
+            v0 = -v0
+        }
+        pathprog = AssPathprog + v0
+        calcpath(pathprog)
+        sub_24()
+    }
+}
+state STATE_5 { // S5
+    statusc 0
+    code(){
+        changestateif(AssPusher_Fall, (AssCurrentPathDir && (pathprog >> 8) >= (pathlen >> 8) + -1) || !AssCurrentPathDir && !pathprog)
+        changestate(AssPusher_KnockBack)
+    }
+    trans {
+        sub_24()
+    }
+}
+state AssPusher_Fall { // S6
+    stateflag 0x30
+    statusc 0
+    code(h){
+        changestateif(AssPusher_Fling, AssCurrentPathDir && !AssDefaultPathDir || !AssCurrentPathDir && AssDefaultPathDir)
+        statusb = FLAG_COLLIDABLE | FLAG_SOLID_SIDES | FLAG_SOLID_TOP
+        entitysetspawn(0)
+        stalltime = h + 1.0
+        sendevent(Event16, player, h)
+        var AssVoice, AssObjectLinkCollision = 0
+        SoundPitchDefault(52)
+        soundplay([ASciA], (0.5V) + rand((0.1V)))
+        AssVoice = voice
+        playframes(ASS_FALL, 0.0, 5.0)
+        if (obj) {
+            interrupter = objectget(obj)
+            if (interrupter) {
+                sendevent(EventHit, interrupter, 100.0)
+                AssObjectLinkCollision = 1
+                do (var i = 0){
+                    playnull()
+                    i += 1.0
+                } while (i < 6.0)
+            }
+        }
+        if (!AssObjectLinkCollision) {
+            playframes(6.0, 9.0)
+            voice = AssVoice
+            soundsetup(0, voice, 5)
+        }
+    }
+}
+
+state AssPusher_Fling { // S7
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+

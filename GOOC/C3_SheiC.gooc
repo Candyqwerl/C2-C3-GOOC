@@ -1,0 +1,250 @@
+#gool SheiC 75 3
+
+#include "goolstdlib.gooc"
+
+#anim SHIELD_WALK_LEFT         [Sg1mV] 41 1
+#anim SHIELD_PEEK_LEFT_RAISE   [Sg2mV] 41 1
+#anim SHIELD_RAISE_1           [Sg3mV] 41 1
+#anim SHIELD_RAISE_2           [Sg4mV] 41 1
+#anim SHIELD_RAISE_3           [Sg5mV] 41 1
+#anim SHIELD_PEEK_RIGHT_RAISE  [Sg6mV] 41 1
+#anim SHIELD_PEEK_RIGHT        [Sg7mV] 41 1
+
+var ShieldFrame, ShieldZ, mem3, ShieldPushVel, ShieldDefaultDir
+
+event EventHit                 => state Shield_Squash
+event EventHitInvincible       => state Shield_Squash
+event EventFling               => state Shield_Fling
+
+#spawn S_SHIELD_ASS   Shield_Init
+
+state Shield_Init { // S0
+    stateflag 0x1
+    statusc 0x2
+    code(ShieldDir) {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_Y
+        zindex = 24
+        trotx = 360deg
+        ShieldDefaultDir = ShieldDir
+        ShieldZ = z
+        ShieldPushVel = 0
+        mem3 = 0
+        sub_156()
+        roty = troty
+        setanim(SHIELD_WALK_LEFT, 20.0)
+        changestate(Shield_Ass)
+    }
+}
+
+state Shield_Ass { // S1
+    stateflag 0x1
+    statusc 0
+    code() {
+        do {
+            playframe(seek(animframe, 20.0, 1.0))
+        } while (1)
+    }
+    trans {
+        changestateif(Shield_Track_Player, distance(player, DIST_NO_Y) < 12.0m, animframe)
+        changestateif(Shield_Peek_Right, !time(5.0s) && (animseq == getanim(SHIELD_WALK_LEFT) && animframe == 20.0))
+    }
+}
+state Shield_Peek_Right { // S2
+    stateflag 0x1
+    statusc 0
+    code(){
+        save(animframe, animseq) {
+            playanim(0, SHIELD_PEEK_RIGHT)
+            playanim(1, SHIELD_PEEK_RIGHT)
+            playanim(2, SHIELD_PEEK_RIGHT)
+            playanim(3, SHIELD_PEEK_RIGHT)
+            playanim(3, SHIELD_PEEK_RIGHT)
+            playanim(4, SHIELD_PEEK_RIGHT)
+            playanim(5, SHIELD_PEEK_RIGHT)
+            playframe(animframe, 0.4s)
+            playframesback(SHIELD_PEEK_RIGHT, 6.0, 0.0)
+        }
+        changestate(Shield_Ass)
+    }
+}
+state Shield_Track_Player { // S3
+    stateflag 0x4004041
+    statusc 0
+    code(StoredFrame){
+        setanim(SHIELD_WALK_LEFT, StoredFrame)
+
+        do (var S3, S4, PlayerDeltaX, PlayerDeltaZ, S7, S8) {
+            S3 = cos(troty)
+            S4 = sin(troty)
+            PlayerDeltaX = player -> x - x
+            PlayerDeltaZ = z - player -> z
+            S7 = (PlayerDeltaZ * S4 >> 12) + (PlayerDeltaX * S3 >> 12)
+            S8 = (PlayerDeltaZ * S3 >> 12) - (PlayerDeltaX * S4 >> 12)
+
+            v0 = S7 / 1m
+
+            if (var PlayerRangeID = v0; PlayerRangeID == -4 || PlayerRangeID == -3 || PlayerRangeID == -2) {
+                ShieldFrame = 0
+            }
+            else if (PlayerRangeID == -1) {
+                ShieldFrame = 10.0
+            }
+            else if (!PlayerRangeID) {
+                ShieldFrame = 20.0
+            }
+            else if (PlayerRangeID == 1) {
+                ShieldFrame = 30.0
+            }
+            else if (PlayerRangeID == 4 || PlayerRangeID == 3 || PlayerRangeID == 2) {
+                ShieldFrame = 40.0
+            }
+            if (animframe == ShieldFrame) {
+                if (distance(player, DIST_NO_Y) > 12.0m) {
+                    changestate(Shield_Ass)
+                }
+                else {
+                    changestateif(Shield_Raise, player -> y > y + 2.5m && abs(S8) < 3.0m)
+                }
+            }
+            if (distance(player) > 10.0m) {
+                playframe(seek(animframe, ShieldFrame, 1.0))
+            }
+            else {
+                playframe(seek(animframe, ShieldFrame, 2.0))
+            }
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventSpinHit && interrupter == player && player -> statusb & FLAG_DPAD_CONTROL) {
+            save(velx, vely, velz, troty) {
+                troty = atan2(player -> trans)
+                interrupter -> speed = 2400.0
+                interrupter -> troty = atan2(player -> trans)
+                setvel(2400.0)
+                interrupter -> velx = velx
+                interrupter -> vely = vely
+                interrupter -> velz = velz
+                interrupter -> statusb &= ~FLAG_DPAD_CONTROL
+            }
+        }
+        accevcstate(Shield_Fling, e == EventSlideHit)
+    }
+    trans {
+        if (abs(degdist(ShieldDefaultDir, atan2(player -> trans))) > 90deg) {
+            troty = ShieldDefaultDir + 180deg
+        }
+        else {
+            troty = ShieldDefaultDir
+        }
+        if (collider) {
+            sendevent(Event32, player, troty, 14.0m)
+            if (eventaccepted) {
+                SoundPitchDefault(52)
+                soundplay([Sg1mA], 1V)
+                ShieldPushVel = 4.0m
+            }
+        }
+    }
+}
+
+sub sub_156() {
+    if (abs(degdist(ShieldDefaultDir, atan2(player -> trans))) > 90deg) {
+        troty = ShieldDefaultDir + 180deg
+    }
+    else {
+        troty = ShieldDefaultDir
+    }
+    if (collider) {
+        sendevent(Event32, player, troty, 14.0m)
+        if (eventaccepted) {
+            SoundPitchDefault(52)
+            soundplay([Sg1mA], 1V)
+            ShieldPushVel = 4.0m
+        }
+    }
+}
+
+inline sub ShieldAssAnim(anim) {
+    playanim(0, anim)
+    playanim(1, anim)
+    playanim(2, anim)
+    playanim(3, anim)
+    playanim(3, anim)
+    playanim(4, anim)
+    playanim(5, anim)
+}
+
+state Shield_Raise { // S4
+    stateflag 0x4004001
+    statusc 0
+    code(){
+        var StoredFrame = animframe
+        if (!animframe) {
+            ShieldAssAnim(SHIELD_PEEK_LEFT_RAISE)
+        }
+        else if (animframe == 10.0) {
+            ShieldAssAnim(SHIELD_RAISE_1)
+        }
+        else if (animframe == 20.0) {
+            ShieldAssAnim(SHIELD_RAISE_2)
+        }
+        else if (animframe == 30.0) {
+            ShieldAssAnim(SHIELD_RAISE_3)
+        }
+        else if (animframe == 40.0) {
+            ShieldAssAnim(SHIELD_PEEK_RIGHT_RAISE)
+        }
+
+        while (player -> stateflag & 8) {
+            playframe()
+        }
+        playframesback(5.0, 0.0)
+        changestate(Shield_Track_Player, StoredFrame)
+    }
+    event(e, a) {
+        if (interrupter == player && ((e == EventSlamHit) || (e == EventJumpedOn))) {
+            sendevent(EventBounce, interrupter, 8.950m)
+            rejevret(eventaccepted)
+        }
+        accevcstate(Shield_Fling, e == EventSlideHit || e == EventSpinHit)
+    }
+}
+state Shield_Fling {
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Shield_Squash {
+    stateflag 0x21
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        playframe()
+        spawn(9, 4, 1, getins(SetParticleColor_Shield_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_Shield_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}

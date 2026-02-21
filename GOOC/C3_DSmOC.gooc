@@ -1,0 +1,321 @@
+#gool DSmOC 40 3
+
+#include "goolstdlib.gooc"
+
+#anim DOOR_CLOSE     [Sm1iV] 8 1
+#anim DOOR_OPEN      [Sm2iV] 24 1
+
+#spawn S_DOOR        Door_Init
+
+var DoorMode, DoorOpenDuration, DoorClosedDuration, DoorCycleOffs, DoorChild, mem6, DoorCycleLen, PlayerCrushed, DoorZindexFar, DoorZindexNear, DoorZindexDistThresh 
+
+state Door_Init { // S0
+    stateflag 0x4004081
+    statusc 0x80012
+    code(Mode, Child, ClosedDur, OpenDur, CycleOffs, ZindexFar, ZindexNear, ZindexDistThresh) {
+        DoorMode = Mode
+        DoorChild = Child
+        DoorOpenDuration = ClosedDur * 1s / 1.2s
+        DoorClosedDuration = OpenDur * 1s / 1.2s
+        DoorCycleOffs = CycleOffs
+        DoorZindexFar = ZindexFar
+        DoorZindexNear = ZindexNear
+        DoorZindexDistThresh = ZindexDistThresh
+
+        DoorOpenDuration += -24
+        if (DoorOpenDuration < 1) DoorOpenDuration = 1;
+
+        DoorClosedDuration += -8
+        if (DoorClosedDuration < 1) DoorClosedDuration = 1;
+
+        DoorCycleLen = (24 + (DoorOpenDuration + (8 + DoorClosedDuration)))
+        DoorCycleOffs = ((DoorCycleLen * DoorCycleOffs) >> 8)
+
+        if (DoorCycleOffs < 0) DoorCycleOffs = 0;
+        if (DoorCycleOffs >= DoorCycleLen) DoorCycleOffs = DoorCycleLen + -1;
+
+        if (DoorChild) {
+            mem6 = 0
+            scalex = 0 - abs(scalex)
+        }
+        else {
+            spawn(DSmOC, S_DOOR, 1, Mode, 1, ClosedDur, OpenDur, CycleOffs, ZindexFar, ZindexNear, ZindexDistThresh)
+            mem6 = misc
+        }
+
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x40000
+        if (DoorMode) {
+            changestateif(TriggerDoor_WaitOpen_2, z > player -> z)
+            changestate(TriggerDoor_WaitClosed)
+        }
+        else {
+            changestateif(CycleDoor_WaitOpen, z > player -> z)
+            changestate(CycleDoor)
+        }
+    }
+}
+
+inline sub SetZindex() {
+    if (CAMTRANSZ - z >= DoorZindexDistThresh) {
+        zindex = DoorZindexNear
+    }
+    else {
+        zindex = DoorZindexFar
+    }
+}
+
+state TriggerDoor_WaitClosed { // S1
+    stateflag 0x40040C1
+    statusc 0x80012
+    code(){
+        setanim(DOOR_CLOSE)
+        sleepframe(7.0)
+    }
+    event(e, a) {
+        accevcstate(Door_Open, e == EventTriggered || e == Event21)
+    }
+    trans {
+        changestateif(TriggerDoor_Open_2, z > player -> z + 1.61m)
+        changestateif(Door_Open, player -> invincible == 5)
+        
+        if (collider && (abs(z - player -> z) <= 1.61m)) {
+            sendevent(EventCrush, collider, 100.0)
+            if (eventaccepted) {
+                PlayerCrushed = 1
+                if (DoorChild) {
+                    interrupter = parent
+                    sendevent(Event21, interrupter, 100.0)
+                }
+                changestate(Door_Open)
+            }
+        }
+        SetZindex()
+    }
+}
+state Door_Open { // S2
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        if (mem6) {
+            interrupter = mem6
+            sendevent(Event21, interrupter, 100.0)
+        }
+        soundpitch((17.6 + rand(3.2)) * 52 >> 8)
+        soundsetup(6, self, 8)
+        soundplay([Sm2iA], 0.7V)
+        playframes(DOOR_OPEN, 0.0, 23.0)
+        changestate(TriggerDoor_WaitOpen)
+    }
+    trans {
+        SetZindex()
+    }
+}
+state TriggerDoor_WaitOpen { // S3
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        setanim(DOOR_OPEN)
+        do {
+            playframe(23.0)
+        } until((frametime - statetime >= DoorOpenDuration) && !(player -> stateflag & 32) && !(player -> invincible))
+
+        if (z > player -> z + 1.61m) {
+            changestate(TriggerDoor_WaitOpen_2)
+        }
+        else {
+            changestate(Door_Close)
+        }
+    }
+    event(e, a) {
+        if (e == EventTriggered || e == Event21) {
+            accev()
+            statetime = frametime
+            if (mem6) {
+                interrupter = mem6
+                sendevent(Event21, interrupter, 100.0)
+            }
+        }
+    }
+}
+
+state Door_Close { // S4
+    stateflag 0x40040C1
+    statusc 0x80012
+    code(){
+        SoundPitchDefault(52)
+        soundsetup(6, self, 8)
+        soundplay([Sm2iA], 1V)
+        playanim(0, DOOR_CLOSE)
+        playanim(1, DOOR_CLOSE)
+        playanim(2, DOOR_CLOSE)
+        playanim(2, DOOR_CLOSE)
+        playanim(3, DOOR_CLOSE)
+        playanim(4, DOOR_CLOSE)
+        playanim(5, DOOR_CLOSE)
+        playanim(6, DOOR_CLOSE)
+
+        unless(SHAKEY) SHAKEY = 5.0;
+
+        SoundPitchDefault(52)
+        soundsetup(6, self, 8)
+        soundplay([Sm1iA], 1V)
+
+        if (PlayerCrushed) {
+            if (DoorChild) {
+                interrupter = parent
+                sendevent(Event21, interrupter, 100.0)
+            }
+            changestate(Door_Open)
+        }
+        else {
+            changestate(TriggerDoor_WaitClosed)
+        }
+    }
+    event(e, a) {
+        accevcstate(Door_Open, e == Event21)
+    }
+    trans {
+        once {
+            setanim(DOOR_CLOSE, 0)
+            PlayerCrushed = 0
+        }
+        if (collider && (abs(z - player -> z) <= 1.61m)) {
+            sendevent(EventCrush, collider, 100.0)
+            if (eventaccepted) {
+                PlayerCrushed = 1
+            }
+        }
+        changestateif(TriggerDoor_ForceOpen, abs(z - CAMTRANSZ) <= 4m)
+        SetZindex()
+    }
+}
+state TriggerDoor_ForceOpen { // S5
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        animframe += 1.0
+        do {
+            playframe(animframe + -1.0)
+        } while (animframe + -1.0 >= 0)
+        changestate(TriggerDoor_WaitOpen_2)
+    }
+}
+state TriggerDoor_Open_2 { // S6
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        playframes(DOOR_OPEN, 0.0, 23.0)
+        changestate(TriggerDoor_WaitOpen_2)
+    }
+    trans => state Door_Open
+}
+state TriggerDoor_WaitOpen_2 { // S7
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        setanim(DOOR_OPEN)
+        do {
+            playframe(23.0)
+        } until((player -> z > z + 6m) && !(player -> stateflag & 32) && !(player -> invincible))
+        changestate(Door_Close)
+    }
+}
+state CycleDoor { // S8
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x40000
+        do {
+            v0 = time(DoorCycleLen, DoorCycleOffs)
+            if (v0 < 24) {
+                stateflag &= ~0x40
+                setanim(DOOR_OPEN, v0 << 8)
+                if(!v0) {
+                    soundpitch((17.6 + rand(3.2)) * 52 >> 8)
+                    soundsetup(6, self, 8)
+                    soundplay([Sm2iA], 0.7V)
+                }
+            }
+            else {
+                v0 += -24
+                if (v0 < DoorOpenDuration) {
+                    stateflag &= ~0x40
+                    changestateif(CycleDoor_WaitOpen, !(!(player -> stateflag & 32) && !player -> invincible) || z > player -> z + 1.61m)
+                    setanim(DOOR_OPEN, 23.0)
+                }
+                else {
+                    v0 -= DoorOpenDuration
+                    if (v0 < 8) {
+                        stateflag |= 64
+                        sendeventif(EventCrush, collider, collider && (abs(z - player -> z) <= 1.61m), 100.0)
+                        if(!v0) {
+                            SoundPitchDefault(52)
+                            soundsetup(6, self, 8)
+                            soundplay([Sm2iA], 1V)
+                        }
+                        setanim(DOOR_CLOSE, v0 << 8)
+                        if (animseq == getanim(DOOR_CLOSE) && animframe == 7.0) {
+                            unless(SHAKEY) {
+                                SHAKEY = 5.0
+                            }
+                            SoundPitchDefault(52)
+                            soundsetup(6, self, 8)
+                            soundplay([Sm1iA], 1V)
+                        }
+                        changestateif(CycleDoor_Force_Open, abs(z - CAMTRANSZ) <= 4m)
+                    }
+                    else {
+                        v0 += -8
+                        changestateif(CycleDoor_Open, player -> invincible == 5 || z > player -> z + 1.61m)
+                        sendeventif(EventCrush, collider, v0 < 2 && (collider && (abs(z - player -> z) <= 1.61m)), 100.0)
+                        setanim(DOOR_CLOSE, 7.0)
+                    }
+                }
+            }
+            playframe()
+        } while (1)
+    }
+}
+state CycleDoor_Force_Open { // S9
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        animframe += 1.0
+        do {
+            playframe(animframe + -1.0)
+        } while (animframe + -1.0 >= 0)
+        changestate(CycleDoor_WaitOpen)
+    }
+}
+state CycleDoor_Open { // S10
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        soundpitch((17.6 + rand(3.2)) * 52 >> 8)
+        soundsetup(6, self, 8)
+        soundplay([Sm2iA], 0.7V)
+        playframes(DOOR_OPEN, 0.0, 23.0)
+        changestate(CycleDoor_WaitOpen)
+    }
+}
+state CycleDoor_WaitOpen { // S11
+    trans => state Door_Open
+    stateflag 0x4004081
+    statusc 0x80012
+    code(){
+        setanim(DOOR_OPEN)
+        do {
+            if (player -> z > z + 6m && !(player -> stateflag & 32) && !player -> invincible) {
+                v0 = time(DoorCycleLen, DoorCycleOffs)
+                changestateif(CycleDoor, v0 > 24 && v0 <= 24 + DoorOpenDuration)
+            }
+            playframe(23.0)
+        } while (1)
+    }
+}

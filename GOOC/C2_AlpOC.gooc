@@ -1,0 +1,554 @@
+
+#gool AlpOC 39 3
+
+#include "goolstdlib.gooc"
+
+#anim MINE                   [Mi1lV] 21 1
+#anim MINE_EXPLODE           [Mi2lV] 21 1
+#anim ELECTRIC_FENCE         [Fe1lV] 1 1
+#anim ELECTRIC_FENCE_BREAK   [Fe2lV] 31 1
+#anim TIMED_SPARK_1          [Fe3lV] 12 1
+#anim TIMED_SPARK_2          [Fe4lV] 7 1
+#anim PLANK                  [pl1lV] 1 1
+#anim PLANK_BREAK            [pl2lV] 20 1
+#anim IGUANA                 [Ig1lV] 55 1
+#anim FENCE_TILE             [Ft1lV] 1 1
+#anim FENCE_TILE_BREAK       [Ft2lV] 16 1
+
+#sprite LIGHT[Cr20T]
+#tex 0xFFFFFF 0 0 5 0 928 32 32 32
+
+#anim TIKI_WAKE[Ti1lV] 13 1
+#anim TIKI_SPIN[Ti2lV] 18 1
+
+#spawn S_MINE               Mine
+#spawn S_ELECTRIC_FENCE     Electric_Fence
+#spawn S_PLANK              Plank
+#spawn S_ACCELERATOR        Accelerator_Spawn
+#spawn S_TIMED_SPARK_1      Timed_Spark
+#spawn S_BOULDER_DOOR       Boulder_Door
+#spawn S_TIMED_SPARK_2      Timed_Spark
+#spawn S_TIKI               Tiki_Spawn
+#spawn S_IGUANA             Iguana
+#spawn S_FENCE_TILE         Fence_Tile
+#spawn S_FENCE_SOUND        Fence_Sound
+
+var IguanaJumpCount, IguanaWalkStartZOffs
+
+// Removed Iguana Code (S0-S3)
+
+state Fence_Tile { // S4
+    code() {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        zindex = 35
+        sleepanim(0, FENCE_TILE)
+    }
+    event(e, a) {
+        accevcstate(FenceTile_Break, e == EventSpinHit || e == EventFling
+            || e == EventSlideHit || e == EventHit
+            || e == EventHitInvincible)
+    }
+    trans __mips {
+        misc = collider
+        if (misc) {
+            misc = collider -> stateflag & (0x10 | 0x200000)
+        }
+        changestateif(FenceTile_Break, misc)
+    }
+}
+
+state FenceTile_Break { // S5
+    code() {
+        statusb = 0
+        v0 = rand(9)
+        while (v0) {
+            playanim(0, FENCE_TILE)
+            v0 += -1
+        }
+        FlipRand()
+        vecx = -4.0 + rand(8.0)
+        scalex += vecx
+        scaley += vecx
+        scalez += vecx
+        if (GLOBAL_3 < 1.0) {
+            SoundPitchDefault()
+            sounddecay(0xC0)
+            soundplay([FnSAA], 1V)
+            GLOBAL_3 += 1.0
+        }
+        else {
+            voice = 0
+        }
+        KillEntity()
+        playframes(FENCE_TILE_BREAK, 1.0, 15.0)
+        FenceVoice()
+    }
+    event(e, a) {
+        if (e == Event26) {
+            FenceVoice()
+        }
+    }
+}
+
+sub FenceVoice() {
+    if (voice) {
+        GLOBAL_3 += -1.0
+        voice = 0
+    }
+}
+
+state Mine { // S6
+    statusc 0
+    code() {
+        zindex = 25
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x400000
+        do {
+            unless(rand(10)) {
+                sounddelay(2)
+                SoundPitchDefault(56)
+                sounddecay(0x46)
+                soundplay([MnBAA], 0.2V)
+                playframes(MINE, 0.0, 20.0)
+            }
+            playanim(0, MINE, 0.08s)
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventHit && !(interrupter -> statusc & 0x400)) {
+            interrupter -> vely += 9.0m
+        }
+        accevcstate(Mine_Explode, e == EventHit || e == EventSlideHit
+            || e == EventSpinHit || e == EventJumpedOn
+            ||e == EventSlamHit || e == EventFling 
+            ||e == EventHitInvincible)
+    }
+     trans {
+        changestateif(Mine_Explode, collider)
+    }
+}
+
+state Mine_Explode { // S7
+    stateflag 0x3
+    code() {
+        KillEntity()
+        statusb = 0
+        SoundPitchDefault(58)
+        sounddecay(0xC0)
+        soundplay([tnt0A], 1V)
+        soundsetup(0, voice, 5)
+        do (var i = 0) {
+            spawn(9, 21, 1, -1.0, randi(-2.0m, 2.0m), 8.0m, randi(-2.0m, 2.0m), 720deg, 0x266, 0.96s, 1)
+            i += 1.0
+        } while (i < 5.0)
+        spawn(9, 4, 1, getins(SetParticleColor_MineExplosion), 4)
+        sendeventif(EventMine_WiloC, player, distance(player, DIST_EXACT) < 1.92m, 17.890m, 0x99)
+        playframes(MINE_EXPLODE, 0.0, 20.0)
+    }
+}
+
+sub SetParticleColor_MineExplosion() {
+    if (var r = rand(3); !r) {
+        SetColor1(0x20, 0x20, 0x20)
+    }
+    else if (r == 1) {
+        SetColor1(0x40, 0x40, 0x40)
+    }
+    else if (r == 2) {
+        SetColor1(0x80, 0x80, 0x80)
+    }
+}
+
+state Electric_Fence { // S8
+    stateflag 0x10001
+    statusc 0
+    code() {
+        zindex = 25
+        soundpitch(4.715)
+        soundplay([FSplA], 0.6V)
+        FlipRand()
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x400000
+        do {
+            playanim(0, ELECTRIC_FENCE, 0.24s)
+            spawn(9, 24, 1, rand(0xC2) << 8)
+        } while (1)
+    }
+    event(e, a) {
+        if (e == EventHit && x - interrupter -> x >= 0) {
+            scalex = -abs(scalex)
+        }
+        accevcstate(ElectricFence_Break, e == EventHit || e == EventFling || e == EventHitInvincible)
+    }
+    trans {
+        sendeventif(EventShock2, collider, abs(player -> x - x) <= 1.125m, 0)
+    }
+}
+
+state ElectricFence_Break { // S9
+    stateflag 0x3
+    code() {
+        statusb = 0
+        SoundPitchDefault(58)
+        sounddecay(0xC0)
+        soundplay([FnSAA], 1V)
+        soundsetup(0, voice, 5)
+        v0 = FRAMETIME < 36 ? 12.0 : 6.0;
+
+        do (var i = 0) {
+            spawn(9, 24, 1, rand(0xC2) << 8)
+            i += 1.0
+        } while (i < v0)
+
+        KillEntity()
+        playanim(0, ELECTRIC_FENCE_BREAK)
+        cascadeevent(Event14, self, 0)
+        playframes(ELECTRIC_FENCE_BREAK, 1.0, 30.0)
+        playnull()
+    }
+}
+
+state Plank { // S10
+    stateflag 0x80010A01
+    statusc 0x1000
+    code(NoBreak) {
+        if (NoBreak) { epc = 0 }
+        if ((player -> stateflag & 0x8000) && player -> z > z && !NoBreak) {
+            KillEntity()
+            changestate(KillEntity)
+        }
+        misc = y - player -> y > 2.5m
+        if (misc) {
+            misc = (abs(x - player -> x) < 4.5m)
+            if (misc) {
+                misc = (abs(z - player -> z) < 4.5m)
+            }
+        }
+        if (!misc) misc = 0;
+        if (misc) settrans(PlankElevavtorBreak);
+
+        FlipRand()
+        moda = rand(8.0)
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 30;
+        statusb = FLAG_SOLID_TOP | FLAG_COLLIDABLE | 0x400000
+        sleepanim(0, PLANK)
+    }
+    event(e, a) {
+        accevcstate(Plank_Break, e == EventHit)
+    }
+}
+
+sub PlankElevavtorBreak() __trans{
+    nofirst {
+        changestateif(Plank_Break, y - player -> y <= 7.5m)
+    }
+}
+
+state Plank_Break { // S11
+    stateflag 0x803
+    statusc 0x201002
+    code(){
+        KillEntity()
+        playanim(0, PLANK, 0.4s)
+        statusb = 0
+        SoundPitchDefault(58)
+        sounddecay(0xC0)
+        soundplay([brk0A], 1V)
+        SoundPitchDefault(58)
+        sounddecay(0xC0)
+        soundplay([tnt0A], 1V)
+        soundsetup(0, voice, 5)
+        playframes(PLANK_BREAK, 0.0, 19.0)
+        playnull()
+    }
+}
+
+state Accelerator_Spawn { // S12
+    statusc 0
+    code(ry) {
+        roty = ry
+        SetScale(1.3S)
+        changestate(Accelerator)
+    }
+}
+
+state Accelerator { // S13
+    statusc 0
+    code() {
+        statusb = FLAG_INVISIBLE | FLAG_COLLIDABLE
+        sleepanim(0, LIGHT)
+    }
+    trans {
+        sendevent(EventAcceleration, collider, roty)
+        changestateif(Accelerator_CoolDown, eventaccepted)
+    }
+}
+
+state Accelerator_CoolDown { // S14
+    statusc 0
+    code() {
+        statusb = 0
+        playnull(6)
+        changestate(Accelerator)
+    }
+}
+
+state Boulder_Door { // S15
+    statusc 0
+    code() {
+        do {
+            creator = GLOBAL_126
+            if (creator) {
+                sendeventif(Event45, player, (creator -> pathprog > creator -> pathlen + -15.0)
+                    && (player -> z > z + -0.1m) && (player -> z < z + 7.0m)
+                     && (abs(player -> x - x) < 1.5m) && creator -> stateflag & 0x80, 0)
+            }
+            playnull()
+        } while (1)
+    }
+}
+
+inline sub TimedSparkVoice() {
+    if (!voice) {
+        soundpitch(4.715)
+        soundplay([FSplA], 0.6V)
+    }
+}
+
+inline sub TimedSparkAnim() {
+    scalex = abs(scalex)
+    statusb = FLAG_COLLIDABLE
+    if (spawn == S_TIMED_SPARK_1) {
+        setanim(TIMED_SPARK_1)
+    }
+    else {
+        setanim(TIMED_SPARK_2)
+    }
+}
+
+state Timed_Spark { // S16
+    statusc 0
+    __transargs
+    code(SparkCycleLen, SparkCycleOffs, SparkTime) {
+        zindex = 25
+        sleep()
+    }
+    trans {
+        once {
+            SparkCycleLen = SparkCycleLen * 1s / 1.2s
+            SparkCycleOffs = SparkCycleOffs * 1s / 1.2s
+            SparkTime = SparkTime * 1s / 1.2s
+            voice = 0
+        }
+        {
+            var CycleLen = time(SparkCycleLen, SparkCycleOffs)
+            var Phaselen = 0
+            if (CycleLen >= 0 && CycleLen <= SparkTime) {
+                Phaselen = CycleLen
+                if (voice) {
+                    soundsetup(2, voice, 6)
+                    soundsetup(0, voice, 3, 0)
+                    voice = 0
+                }
+                statusb = 0
+                animseq = 0
+            }
+            else {
+                if (CycleLen >= SparkTime && CycleLen <= SparkTime + 7) {
+                    Phaselen = CycleLen - SparkTime
+                    var SparkFrame = 0 + ((Phaselen * 6.0) / ((SparkTime + 7) - SparkTime))
+                    TimedSparkVoice()
+                    TimedSparkAnim()
+                    animframe = SparkFrame
+                }
+                else if (CycleLen >= SparkTime + 7 && CycleLen <= SparkCycleLen + -7) {
+                    Phaselen = CycleLen - SparkTime + 7
+                    TimedSparkVoice()
+                    TimedSparkAnim()
+                    animframe = 6.0
+                }
+                else if (CycleLen >= SparkCycleLen + -7 && CycleLen <= SparkCycleLen) {
+                    Phaselen = CycleLen - SparkCycleLen + -7
+                    var SparkFrame = 6.0 + ((Phaselen * -6.0) / (SparkCycleLen - SparkCycleLen + -7))
+                    TimedSparkVoice()
+                    TimedSparkAnim()
+                    animframe = SparkFrame
+                }
+            }
+        }
+        sendeventif(EventShock2, collider, !(player -> stateflag & 32) && !player -> invincible, 100.0)
+    }
+}
+
+state Fence_Sound { // S17
+    statusc 0
+    code() {
+        statusb = FLAG_COLLIDABLE
+        SetScale(5.0S, 2.0S, 0.35S)
+        soundpitch(4.715)
+        soundplay([FSplA], 0.6V)
+        sleepnull()
+    }
+    trans {
+        sendeventif(EventShock2, collider, !(player -> stateflag & 32) && !player -> invincible, 100.0)
+    }
+}
+
+state Tiki_Spawn { // S18
+    statusc 0
+    code(WakeRange, Speed, ry) {
+        SetScale(0.666S)
+        roty = ry
+        zindex = 24
+        v0 = WakeRange
+        field_61 = Speed
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        changestate(Tiki_Sleep)
+    }
+}
+
+state Tiki_Sleep { // S19
+    stateflag 0x80010201
+    statusc 0
+    code() {
+        FlipRand()
+        sleepanim(0, TIKI_WAKE)
+    }
+    trans {
+        changestateif(Tiki_Wake, distance(player, DIST_NO_Y) < v0 && player -> velz < velz)
+    }
+}
+
+
+state Tiki_Wake { // S20
+    stateflag 0x80010201
+    statusc 0
+    code(){
+        playframes(TIKI_WAKE, 0.0, 12.0)
+        unless(SHAKEY){
+            SHAKEY = 10.0
+        }
+        SetVec(x, y, z)
+        if (field_61) {
+            changestate(Tiki_Move_Fast)
+        }
+        else {
+            changestate(Tiki_Move)
+        }
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+inline sub TikiDoSpin(t) {
+    statusb |= FLAG_PHYSICS_ENGINE
+    do (var start = frametime) {
+        if (player -> stateflag & 32) {
+            statusb &= ~FLAG_PHYSICS_ENGINE
+        }
+        playframe()
+    } while (frametime - start < t)
+    statusb &= ~FLAG_PHYSICS_ENGINE
+    if (animframe == 0) {
+        playframes(TIKI_SPIN, 0.0, 17.0)
+    }
+    else {
+        playframesback(TIKI_SPIN, 16.0, 0.0)
+    }
+}
+
+state Tiki_Move { // S21
+    stateflag 0x80010201
+    statusc 0
+    code() {
+        animframe = 0
+        do {
+            do {
+                velx = !rand(2) ? 1.5m + rand(0.5m) : -(1.5m + rand(0.5m))
+                velx = (velx + vecx) - x
+
+                velz = !rand(2) ? 1.5m + rand(1.5m) : -(1.5m + rand(1.5m))
+                velz = (velz + vecz) - z
+
+            } until(abs(velx) + abs(velz) > 2.0m)
+
+            TikiDoSpin(1.0s)
+        } while (1)
+    }
+    trans => state Tiki_Wake
+}
+
+state Tiki_Move_Fast { // S22
+    stateflag 0x80010201
+    statusc 0
+    code(){
+        var TikiLoopCount = 0
+        animframe = 0
+        do {
+            if (var TikiPathProg = TikiLoopCount; !TikiPathProg) {
+                velx = -1.5m
+                velz = -1.5m
+            }
+            else if (TikiPathProg == 1.0) {
+                velx = -1.5m
+                velz = 1.5m
+            }
+            else if (TikiPathProg == 2.0) {
+                velx = 1.5m
+                velz = 1.5m
+            }
+            else if (TikiPathProg == 3.0) {
+                velx = 1.5m
+                velz = -1.5m
+            }
+            velx = (((velx + vecx) - x) << 2)
+            velz = (((velz + vecz) - z) << 2)
+            TikiDoSpin(0.25s)
+            TikiLoopCount = ((TikiLoopCount + 1.0) & 0x3FF)
+        } while (1)
+    }
+    trans => state Tiki_Wake
+}
+
+state Iguana_Fling { // S23
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Iguana_Squash { // S24
+    stateflag 0x23
+    statusc 0x12
+    code(h) {
+        KillEntity()
+        sendevent(Event16, player, h)
+        spawn(9, 4, 1, getins(SetParticleColor_Iguana_Squash), 1)
+        EnemyDieClearFlags()
+        playframe()
+    }
+}
+
+sub SetParticleColor_Iguana_Squash() {
+    if (var r = rand(3); !r) {
+        SetColor1(0x46, 0x46, 0x96)
+    }
+    else if (r == 1) {
+        SetColor1(0x70, 0x899, 0xB8)
+    }
+    else if (r == 2) {
+        SetColor1(0x96, 0x1E, 0x64)
+    }
+}
+
+state Kill { // S25
+    statusc 0
+    code(){ }
+}

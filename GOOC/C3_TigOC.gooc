@@ -1,0 +1,934 @@
+#gool TigOC 52 3
+
+#include "goolstdlib.gooc"
+
+#anim TAZ_JUMP_ATTACK_1       [Tj16V] 1 1    // 0x000
+#anim TAZ_JUMP_ATTACK_2       [Tj26V] 9 1    // 0x500
+#anim TAZ_JUMP_ATTACK_3       [Tj36V] 19 1   // 0xA00
+#anim TAZ_JUMP_ATTACK_4       [Tj46V] 2 1    // 0xF00
+#anim TAZ_JUMP_ATTACK_5       [Tj56V] 18 1   // 0x1400
+
+#anim TAZ_TRIDENT_JAMMED_1    [Tj66V] 26 1   // 0x1900
+#anim TAZ_TRIDENT_JAMMED_2    [Tj76V] 29 1   // 0x1E00
+#anim TAZ_TRIDENT_YANK_1      [Tj86V] 33 1   // 0x2300
+#anim TAZ_TRIDENT_YANK_2      [Tj96V] 52 1   // 0x2800
+
+#anim TAZ_TAUNT_1             [Tt16V] 38 1   // 0x2D00
+#anim TAZ_TAUNT_2             [Tt26V] 17 1   // 0x3200
+#anim TAZ_TAUNT_3             [Tt36V] 10 1   // 0x3700
+
+#anim TAZ_RETREAT_1           [Tja6V] 7 1    // 0x3C00
+#anim TAZ_TAUNT_4             [Tjb6V] 32 1   // 0x4100
+#anim TAZ_HOLD_TRIDENT        [Tp16V] 34 1   // 0x4600
+#anim TAZ_FINAL_DEATH         [Td16V] 45 1   // 0x4B00
+#anim TAZ_ATTACKED            [Tjc6V] 7 1    // 0x5000
+#anim TAZ_RECOVER             [Tjd6V] 32 1   // 0x5500
+#anim TAZ_RETREAT_2           [Tje6V] 18 1   // 0x5A00
+#anim TAZ_RETREAT_3           [Tjf6V] 22 1   // 0x5F00
+#anim TAZ_GRAB_TRIDENT        [Tp26V] 48 1   // 0x6400
+#anim TRIDENT_SHATTER         [Tjg6V] 21 1   // 0x6900
+
+#anim TAZ_INTRO_1             [Ti16V] 138 1  // 0x6E00
+#anim TAZ_INTRO_2             [Ti26V] 138 1  // 0x7300
+#anim TAZ_INTRO_3             [Ti36V] 138 1  // 0x7800
+#anim TAZ_INTRO_4             [Ti46V] 138 1  // 0x7D00
+
+#anim LION_RUN                [TSw6V] 14 1   // 0x8200
+#anim LION_SWALLOW            [TS26V] 55 1   // 0x8700
+#anim LION_STAND              [TS36V] 20 1   // 0x8C00
+
+#anim CAESAR_CORTEX_WAVE      [Cc16V] 99 1   // 0x9100
+#anim CAESAR_CORTEX_HEAD      [Cc26V] 1 1    // 0x9600
+#anim COLOSSEUM_SKYBOX        [Sk16V] 1 1    // 0x9B00
+
+#spawn S_TAZ_TIGER            Taz_Intro
+#spawn S_LION_GENERATOR       Lion_Generator
+#spawn S_LION                 Lion_Stampede 
+#spawn S_TAZ_TRIDENT          Trident_Shatter
+#spawn S_TAZ_PILLARS          Taz_Intro_Pillars
+#spawn S_SKYBOX               Colosseum_SkyBox
+#spawn S_CORTEX               Caesar_Cortex
+
+event Event19 =>              sub DeloadTazAsset
+
+#include "FruiC.gooh"
+
+var LionGenerator, mem2, TazJumpAttackCount, TazJumpStartX, TazJumpStartY, TazJumpStartZ, LionSpawnCount, PlayIntroSequence, ColosseumVoice, CrashAbilityReward
+
+sub LoadTazAsset(TazAsset) {
+    if (var Asset = TazAsset; Asset == 1.0) {
+        loadfile([Ti16V])
+        loadfile([TT46G])
+        loadfile([Ti26V])
+        loadfile([TT46G])
+        loadfile([Ti36V])
+        loadfile([TT56G])
+        loadfile([Ti46V])
+        loadfile([TT56G])
+    }
+    else if (Asset == 2.0) {
+        loadfile([TSw6V])
+        loadfile([TSw6G])
+        loadfile([TS26V])
+        loadfile([TSw6G])
+        loadfile([TS36V])
+        loadfile([TSw6G])
+        loadfile([Tt16V])
+        loadfile([TT16G])
+        loadfile([Tt26V])
+        loadfile([TT16G])
+        loadfile([Tt36V])
+        loadfile([TT16G])
+    }
+}
+
+sub DeloadTazAsset(TazAsset) {
+    if (var Asset = TazAsset; Asset == 1.0) {
+        deloadfile([Ti16V])
+        deloadfile([TT46G])
+        deloadfile([Ti26V])
+        deloadfile([TT46G])
+        deloadfile([Ti36V])
+        deloadfile([TT56G])
+        deloadfile([Ti46V])
+        deloadfile([TT56G])
+    }
+    else if (Asset == 2.0) {
+        deloadfile([TSw6V])
+        deloadfile([TSw6G])
+        deloadfile([TS26V])
+        deloadfile([TSw6G])
+        deloadfile([TS36V])
+        deloadfile([TSw6G])
+        deloadfile([Tt16V])
+        deloadfile([TT16G])
+        deloadfile([Tt26V])
+        deloadfile([TT16G])
+        deloadfile([Tt36V])
+        deloadfile([TT16G])
+    }
+}
+
+inline sub SetColosseumVoice(vol, fadetime) {
+    voice = ColosseumVoice
+    soundsetup(vol, voice, 6)
+    soundsetup(fadetime, voice, 2, 0)
+}
+
+inline sub SoundTazGrowl(vol) {
+    soundpitch(3.263)
+    sounddecay(0xFF)
+    soundsetup(7, self, 8)
+    soundplay([TGStA], vol)
+}
+
+inline sub SoundColosseumCrowd(){
+    soundpitch(4.0)
+    sounddecay(0xFF)
+    soundsetup(8, self, 8)
+    soundcount(0xFFFF)
+    soundplay([Tt16A], 0.2V)
+}
+
+state Taz_Intro { // S0
+    stateflag 0x2001
+    statusc 0
+    code() {
+        GLOBAL_126 = self
+        GLOBAL_150 = 0x10000 | GLOBAL_150
+        spawn(67, 0, 1, 3.0, 0) // C3-BosBC 0 (BossHUD)
+        zindex = 26
+        x = 0
+        y = 4.0m
+        z = -9.0m
+        TazJumpAttackCount = 0
+        stalltime = 3.0 // Boss Health
+        statusb = FLAG_STALL | FLAG_HAS_SHADOW | 0x40000 | FLAG_SOLID_SIDES | FLAG_SOLID_GROUND | FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | FLAG_COLLIDABLE
+        groundy = y
+        field_60 = 0
+        spawn(29, 8, 1, 0, 2.6S, 0) // ShadC 8
+        SoundColosseumCrowd()
+        ColosseumVoice = voice
+        if (!RESPAWNCOUNT) {
+            zindex = -40
+            spawn(TigOC, S_TAZ_PILLARS, 1)
+            do {
+                if (abs(degdist(0, CAMROTX)) < 30deg) {
+                    zindex = 26
+                }
+                player -> statusb |= FLAG_INVISIBLE
+                playanim(0, TAZ_INTRO_1)
+            } until(GLOBAL_119 & 0x200)
+            zindex = 26
+            setanim(TAZ_INTRO_1, -1.0)
+            do {
+                animframe += 1.0
+                if (animframe == 68.0 || animframe == 126.0) {
+                    soundpitch(0x571)
+                    soundsetup(7, self, 8)
+                    sounddecay(0xC8)
+                    soundplay([Tt96A], 1V)
+                }
+                if (animframe == 58.0) {
+                    soundpitch(0x45A)
+                    soundsetup(6, self, 8)
+                    soundplay([Tta6A], 1V)
+                }
+                if (animframe == 104.0) {
+                    soundpitch(0x45A)
+                    soundsetup(6, self, 8)
+                    sounddecay(0xC8)
+                    soundplay([Ttb6A], 1V)
+                }
+                playframe()
+            } while (animframe + 1.0 <= 137.0)
+
+            playframes(TAZ_INTRO_2, 0.0, 28.0)
+
+            player -> statusb &= ~FLAG_INVISIBLE
+
+            soundpitch(0x45A)
+            sounddelay(27)
+            soundsetup(8, self, 8)
+            sounddecay(0xC8)
+            soundplay([Ttc6A], 1V)
+
+            soundpitch(0x45A)
+            sounddelay(57)
+            soundsetup(8, self, 8)
+            sounddecay(0xD2)
+            soundplay([Ttb6A], 1V)
+
+            playframes(29.0, 137.0)
+            epc = 0
+            playframes(TAZ_GRAB_TRIDENT, 7.0, 47.0)
+
+            soundpitch(4.0)
+            soundplay([Tt86A], 1V)
+            playframes(TAZ_HOLD_TRIDENT, 0.0, 33.0)
+        }
+        else {
+            PlayIntroSequence = 0
+            changestate(Taz_Intro_Trans)
+        }
+        LionGenerator = objectget(11.0)
+        playframes(TAZ_JUMP_ATTACK_2, 0.0, 8.0)
+        changestate(Taz_Jump, 0)
+    }
+    event(e, a) {
+        accevcstate(Taz_Intro_Trans, e == Event67)
+    }
+}
+
+state Taz_Intro_Trans { // S1
+    stateflag 0x2001
+    statusc 0
+    code() {
+        LionGenerator = objectget(11.0)
+        zindex = 26
+        player -> statusb &= ~FLAG_INVISIBLE
+        playframes(TAZ_GRAB_TRIDENT, 0.0, 47.0)
+        soundpitch(4.0)
+        soundplay([Tt86A], 1V)
+
+        playframes(TAZ_HOLD_TRIDENT, 0.0, 33.0)
+        playframes(TAZ_JUMP_ATTACK_2, 0.0, 8.0)
+        changestate(Taz_Jump, 0)
+    }
+}
+
+state Taz_Jump { // S2
+    stateflag 0x40040C9
+    statusc 0x12
+    code(TazJumpType) {
+        if (animseq == getanim(TAZ_RECOVER)) {
+            setanim(TAZ_RETREAT_2)
+        }
+        else {
+            setanim(TAZ_JUMP_ATTACK_3)
+        }
+        TazJumpInit(15m, TazJumpType)
+        soundpitch((0x999 + rand(6.4)) * 0x4B >> 8)
+        sounddecay(0xFF)
+        soundsetup(7, self, 8)
+        soundplay([Tt66A], 0.17V + rand(0.05V))
+        statusb &= ~FLAG_SOLID_GROUND
+        settrans(TazDoJump)
+        playframes(0.0, 18.0)
+        until(STATUS_GROUNDLAND) {
+            playframe()
+        }
+        statusb &= ~FLAG_ROT_Y
+        changestate(Taz_Retreat, TazJumpType)
+    }
+}
+
+sub TazDoJump(a) __trans {
+    x = TazJumpStartX + (((vecx - TazJumpStartX) * (frametime - statetime)) / 19)
+    z = TazJumpStartZ + (((vecz - TazJumpStartZ) * (frametime - statetime)) / 19)
+    if (x == vecx && z == vecz) {
+        TazJumpStartX = vecx
+        TazJumpStartY = vecy
+        TazJumpStartZ = vecz
+    }
+    if (!a) {
+        if (vely <= 0 && player -> statusa & FLAG_GROUNDLAND) {
+            sendevent(Event38, collider, 0)
+        }
+        else {
+            sendevent(EventHit, collider, 100.0)
+        }
+    }
+    if (vely < 0) {
+        statusb |= FLAG_SOLID_GROUND
+    }
+    misc = ColosseumVoice > 0
+    if (misc) {
+        misc = getvalideventobj(ColosseumVoice, 0) != -1 // IDFK OR CARE!!!!
+    }
+    if (!misc) {
+        misc = 0
+    }
+    if (!misc) {
+        SoundColosseumCrowd()
+        ColosseumVoice = voice
+    }
+}
+
+sub TazJumpInit(TazJumpHeight, TazJumpType){
+    TazJumpStartX = x
+    vecx = player -> x
+    TazJumpStartZ = z
+    vecz = player -> z
+    if (var JumpType = TazJumpType; JumpType == 1) {
+        SetVec(0, 4m, -9m)
+        groundy = vecy
+        troty = 0
+        vely = TazJumpHeight + 6m
+    }
+    else if (JumpType == 0) {
+        if (TazJumpAttackCount == 0) {
+            vecx = ((vecx + TazJumpStartX) >> 1)
+            vecz = ((vecz + TazJumpStartZ) >> 1)
+        }
+        groundy = 0
+        troty = atan2(self, vecx)
+        vely = TazJumpHeight
+    }
+    velx = 0
+    velz = 0
+    TazJumpAttackCount += 1.0
+    statetime = frametime
+    trotx = 360deg
+    statusb |= FLAG_ROT_Y
+}
+
+state Taz_Final_Jump { // S3
+    stateflag 0x4004089
+    statusc 0x12
+    code() {
+        setanim(TAZ_JUMP_ATTACK_5)
+        TazJumpInit(15m, 0)
+        settrans(TazDoJump)
+        playframes(0.0, 17.0)
+        until(STATUS_GROUNDLAND) {
+            playframe()
+        }
+        tpc = 0
+        statusb &= ~FLAG_ROT_Y
+        changestate(Taz_Trident_Jammed)
+    }
+}
+
+state Taz_Retreat { // S4
+    stateflag 0x4004085
+    statusc 0x12
+    code(TazJumpType) {
+        x = vecx
+        z = vecz
+        spawn(9, 2, 1, -1.0, 5.0, groundvel + 6m)
+        spawn(9, 43, 1, 200.0, 0x32, 0x32, 0x32, getins(SetSmokeColor), 360deg, atan2_3d(self, self))
+        if (!SHAKEY) {
+            SHAKEY = 5.0
+        }
+        soundpitch((14.4 + rand(3.2)) * 64 >> 8)
+        sounddecay(0xFF)
+        soundsetup(6, self, 8)
+        soundplay([Tt26A], 1V)
+        if (animseq == getanim(TAZ_RETREAT_3)) {
+            playframes(TAZ_RETREAT_2, 0.0, 21.0)
+        }
+        else {
+            playanim(0, TAZ_JUMP_ATTACK_4)
+            playanim(1, TAZ_JUMP_ATTACK_4)
+        }
+        var JumpType = TazJumpType
+        changestateif(Taz_Taunt, JumpType == 1)
+        changestateif(Taz_Kill_Player, player -> stateflag & 0x8000000)
+        changestateif(Taz_Final_Jump, TazJumpAttackCount > 6.0 - stalltime)
+        playanim(8, TAZ_JUMP_ATTACK_2)
+        changestate(Taz_Jump, 0)
+    }
+}
+
+sub SetSmokeColor(){
+    SetColor1(0x32, 0x32, 0x32)
+}
+
+state Taz_Trident_Jammed { // S5
+    stateflag 0x5
+    statusc 0
+    code() {
+        soundpitch(4.0)
+        soundplay([Tt86A], 1V)
+        soundpitch((14.4 + rand(3.2)) * 64 >> 8)
+        sounddecay(0xFF)
+        soundsetup(6, self, 8)
+        soundplay([Tt26A], 1V)
+        playframes(TAZ_TRIDENT_JAMMED_1, 0.0, 25.0)
+        unless(stalltime == 1.0) {
+            playframes(TAZ_TRIDENT_JAMMED_1, 0.0, 28.0)
+        }
+        if (stalltime == 3.0) {
+            SoundTazGrowl(0.5V)
+            playframes(TAZ_TRIDENT_YANK_1, 0.0, 32.0)
+        }
+        soundpitch(4.0)
+        sounddelay(25)
+        soundplay([Tt86A], 1V)
+        playframes(TAZ_TRIDENT_YANK_2, 0.0, 51.0)
+        changestate(Taz_Jump, 1)
+    }
+    event(e, a) {
+        accevcstate(Taz_Attacked, e == EventHit || e == EventJumpedOn || e == EventSpinHit || e == EventSlideHit || e == EventFling || e == EventSlamHit)
+    }
+}
+
+state Taz_Taunt { // S6
+    stateflag 0x45
+    statusc 0
+    code() {
+        interrupter = LionGenerator
+        sendevent(EventTriggered, interrupter)
+        v0 = false
+        SetColosseumVoice(25, 0x2665)
+        statusb &= ~FLAG_HAS_SHADOW
+        if (animseq == getanim(TAZ_RETREAT_3)) {
+            playframes(TAZ_GRAB_TRIDENT, 0.0, 47.0)
+            soundpitch(4.0)
+            soundplay([Tt86A], 1V)
+            playframes(TAZ_HOLD_TRIDENT, 0.0, 33.0)
+        }
+        soundpitch(3.263)
+        sounddecay(0xFF)
+        soundsetup(7, self, 8)
+        soundplay([TGrtA], 1V)
+        playframes(TAZ_TAUNT_1, 0.0, 37.0)
+
+        do {
+            soundpitch(0x45A)
+            sounddecay(0xFF)
+            soundsetup(7, self, 8)
+            soundplay([Tta6A], 1V)
+            playframes(TAZ_TAUNT_2, 0.0, 16.0)
+        } until(v0)
+
+        SoundTazGrowl(1V)
+        playframes(TAZ_TAUNT_2, 0.0, 16.0)
+        playframes(TAZ_TAUNT_3, 0.0, 9.0)
+        playframes(TAZ_JUMP_ATTACK_2, 0.0, 8.0)
+
+        TazJumpAttackCount = 0
+        SetColosseumVoice(25, 0xCCC)
+        statusb |= FLAG_HAS_SHADOW
+        changestate(Taz_Jump, 0)
+    }
+    event(e, a) {
+        if (e == EventTriggered) {
+            accev()
+            v0 = true
+        }
+    }
+}
+
+state Taz_Attacked { // S7
+    stateflag 0x3
+    code() {
+        if (GLOBAL_151 == 5.0) {
+            SoundPitchDefault(0x4B)
+            sounddecay(0xD2)
+            soundsetup(7, self, 8)
+            soundplay([Bp10A], 0.5V)
+            if (rand(2)) {
+                SoundPitchDefault(0x57)
+                sounddecay(0xCD)
+                soundsetup(8, self, 8)
+                soundplay([1059I], 1V)
+            }
+            else {
+                soundpitch((14.4 + rand(3.2)) * 64 >> 8)
+                sounddecay(0xCD)
+                soundsetup(8, self, 8)
+                soundplay([1060I], 1V)
+            }
+        }
+        else {
+            SoundPitchDefault(0x4B)
+            sounddecay(0xD2)
+            soundsetup(7, self, 8)
+            soundplay([Bp10A], 1V)
+        }
+        GLOBAL_101 = 2
+        GLOBAL_100 = 0xFF
+        SetColosseumVoice(50, 0x3FFF)
+        soundpitch(4.0)
+        soundsetup(7, self, 8)
+        sounddecay(0xC8)
+        soundplay([Ttd6A], 1V)
+
+        statusb |= FLAG_COLLIDABLE
+        stalltime += -1.0
+        if ((animseq == getanim(TAZ_TRIDENT_JAMMED_1)
+            || animseq == getanim(TAZ_TRIDENT_JAMMED_2)
+            || animseq == getanim(TAZ_TRIDENT_YANK_1)) || animseq == getanim(TAZ_TRIDENT_YANK_1) && animframe <= 24.0) {
+            v0 = true
+        }
+        else {
+            v0 = false
+        }
+        EnemyFlingSetDir()
+        setvel(4m)
+        vely = 10.0m
+        troty += 180deg
+        trotx = 360deg
+        statusb |= FLAG_ROT_Y
+        changestateifn(Taz_Defeated, stalltime)
+        if (v0) {
+            spawn(TigOC, S_TAZ_TRIDENT, 1)
+            playanim(0, TAZ_ATTACKED)
+            playanim(1, TAZ_ATTACKED)
+            playanim(2, TAZ_ATTACKED)
+            playanim(3, TAZ_ATTACKED)
+            playanim(4, TAZ_ATTACKED)
+            playanim(4, TAZ_ATTACKED)
+            playanim(5, TAZ_ATTACKED)
+            soundpitch(4.0)
+            sounddelay(5)
+            soundplay([Tt56A], 1V)
+            playframes(TAZ_RECOVER, 0.0, 31.0)
+        }
+        else {
+            playanim(0, TAZ_RETREAT_1)
+            playanim(1, TAZ_RETREAT_1)
+            playanim(2, TAZ_RETREAT_1)
+            playanim(3, TAZ_RETREAT_1)
+            playanim(4, TAZ_RETREAT_1)
+            playanim(4, TAZ_RETREAT_1)
+            playanim(5, TAZ_RETREAT_1)
+            soundpitch(4.0)
+            sounddelay(5)
+            soundplay([Tt56A], 1V)
+            playframes(TAZ_TAUNT_4, 0.0, 31.0)
+        }
+        velx = 0
+        velz = 0
+        statusb &= ~FLAG_ROT_Y
+        SetColosseumVoice(25, 0xCCC)
+        changestate(Taz_Jump, 1)
+    }
+    trans {
+        if (STATUS_GROUNDLAND) {
+            velx = ((velx * 9.2s) >> 8)
+            velz = ((velz * 9.2s) >> 8)
+        }
+    }
+}
+
+state Taz_Defeated { // S8
+    stateflag 0x40040A1
+    statusc 0x80022
+    code() {
+        entitysetspawn(0)
+        GAMEFLAGS |= 0x80000000
+        statusb |= FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        soundpitch(4.0)
+        sounddelay(5)
+        soundplay([Tt56A], 1V)
+        playframes(TAZ_FINAL_DEATH, 0.0, 44.0)
+        SetColosseumVoice(25, 0x2665)
+        if (GLOBAL_109) {
+            GLOBAL_160 &= ~1
+        }
+        if (GLOBAL_160 & 1) {
+            field_61 = 1.0
+        }
+        else {
+            save(x, y, z) {
+                x = 0
+                y = 0
+                z = 0
+                spawn2(FruiC, FruiC_S_FRUIT_HOP, 1, 700.0, 0) // Ability Unlock: Body Slam
+                field_61 = 0
+            }
+        }
+        v0 = GLOBAL_160
+        do {
+            statetime = frametime
+            if (v0 != GLOBAL_160 || field_61 && frametime - statetime >= 1s) {
+                save(x, y, z, v0) {
+                    x = 0
+                    y = 0
+                    z = 0
+                    if (field_61) {
+                        CrashAbilityReward = 0
+                    }
+                    else {
+                        CrashAbilityReward = 700.0
+                    }
+                    spawn2(30, 8, 1, 5m, 0, 9.5m, 16m, 720deg, CrashAbilityReward)
+                    creator = misc
+                }
+                v0 = GLOBAL_160
+                field_61 = 0
+                if (!GLOBAL_109) {
+                    misc = !(0x40 & PREVBOXCOUNT)
+                    if (misc) {
+                        misc = SFXVOL
+                    }
+                    if (!misc) {
+                        misc = 0
+                    }
+                    if (misc) {
+                        GLOBAL_190 = 2.0
+                        GLOBAL_191 = 6
+                    }
+                }
+            }
+            playframe()
+        } while (1)
+        GLOBAL_186 = 0
+    }
+    trans {
+        if (frametime - statetime >= 1s) {
+            velx = 0
+            velz = 0
+            statusb &= ~FLAG_ROT_Y
+            tpc = 0
+        }
+    }
+}
+
+state Taz_Kill_Player { // S9
+    code() {
+        SetColosseumVoice(12, 0x3FFF)
+        soundpitch(0x45A)
+        sounddelay(2)
+        soundsetup(6, self, 8)
+        sounddecay(0xC8)
+        soundplay([Ttb6A], 1V)
+        playframes(TAZ_TAUNT_1, 0.0, 37.0)
+
+        while (player -> stateflag & 32) {
+            soundpitch(0x45A)
+            soundsetup(6, self, 8)
+            sounddecay(0xC8)
+            soundplay([Tta6A], 1V)
+            playframes(TAZ_TAUNT_2, 0.0, 16.0)
+        }
+        SetColosseumVoice(25, 0xCCC)
+        changestate(Taz_Jump, 0)
+    }
+}
+
+state Lion_Generator { // S10
+    statusc 0
+    code() {
+        playnull()
+        playnull()
+        playnull()
+        creator = objectget(12.0)
+        changestate(Lion_Generator_Sleep)
+    }
+}
+
+state Lion_Generator_Active { // S11
+    statusc 0
+    code() {
+        if (0x40 & GLOBAL_27 || GLOBAL_105) {
+            SECTIONDEATHCOUNT = 0
+        }
+        field_61 = SECTIONDEATHCOUNT + -9.0
+        if (field_61 < 0) {
+            field_61 = 0
+        }
+        else if (field_61 > 5.0) {
+            field_61 = 5.0
+        }
+        v0 = (9 + 3 * (3 - (creator -> stalltime >> 8))) - (field_61 >> 8)
+        do {
+            statetime = frametime
+            do {
+                playnull()
+                misc = frametime - statetime >= 0.5s
+                if (misc) {
+                    misc = !(player -> stateflag & 32) && !player -> invincible
+                }
+                if (!misc) {
+                    misc = 0
+                }
+            } until(misc)
+            {
+                var LionDoorIndex = rand(5)
+                if (rand(3) || SECTIONDEATHCOUNT >= 5.0) {
+                    LionDoorIndex = -1
+                }
+                spawn(TigOC, S_LION, 1, LionDoorIndex)
+                if (LionDoorIndex >= 0) {
+                    if (var AdjacentDoor = LionDoorIndex; !AdjacentDoor) {
+                        LionDoorIndex = 1
+                    }
+                    else if (AdjacentDoor == 4) {
+                        LionDoorIndex = 3
+                    }
+                    else if (!rand(2)) {
+                        LionDoorIndex += 1
+                    }
+                    else {
+                        LionDoorIndex += -1
+                    }
+                    playnull(2)
+                    spawn(TigOC, S_LION, 1, LionDoorIndex)
+                }
+                LionSpawnCount += 1
+            }
+            if (LionSpawnCount >= v0) {
+                sendevent(EventTriggered, creator)
+                changestateif(Lion_Generator_Sleep, misc)
+            }
+        } while (1)
+    }
+}
+
+state Lion_Generator_Sleep { // S12
+    statusc 0
+    code() {
+        LionSpawnCount = 0
+        sleepnull()
+    }
+    event(e, a) {
+        accevcstate(Lion_Generator_Active, e == EventTriggered)
+    }
+}
+
+state Lion_Stampede  { // S13
+    statusc 0
+    code(LionDoorIndex) {
+        zindex = 26
+        if (!rand(2)) {
+            soundpitch((11.2 + rand(6.4)) * 52 >> 8)
+            soundsetup(6, self, 8)
+            sounddecay(0xC8)
+            soundplay([Tt36A], 1V)
+        }
+        if (!rand(2) || LionDoorIndex >= 0) {
+            if (LionDoorIndex == -1) {
+                LionDoorIndex = rand(5)
+            }
+            if (var DoorIndex = LionDoorIndex; !DoorIndex) {
+                x = -5.2m
+            }
+            else if (DoorIndex == 1) {
+                x = -2.8m
+            }
+            else if (DoorIndex == 2) {
+                x = 0
+            }
+            else if (DoorIndex == 3) {
+                x = 2.8m
+            }
+            else if (DoorIndex == 4) {
+                x = 5.2m
+            }
+        }
+        else if (var PlayerPos = player -> x / 2.7m; PlayerPos == 2 || PlayerPos == 3 || PlayerPos == 4) {
+            x = 5.2m
+        }
+        else if (PlayerPos == 1) {
+            x = 2.8m
+        }
+        else if (!PlayerPos) {
+            x = 0
+        }
+        else if (PlayerPos == -1) {
+            x = - 2.8m
+        }
+        else if (PlayerPos == -2 || PlayerPos == -3 || PlayerPos == -4) {
+            x = -5.2m
+        }
+        y = 0
+        z = -8.0m
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        do {
+            SoundPitchDefault(0x4B)
+            soundplay([Tt76A], 0.6V)
+            playframes(LION_RUN, 0.0, 13.0)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Lion_Fling, e == EventSpinHit || e == EventSlideHit || e == EventHitInvincible)
+        accevcstate(Lion_Squash, e == EventSlamHit || e == EventJumpedOn)
+    }
+    trans {
+        changestateif(Lion_Squash, frametime - statetime >= 2.0s, -1)
+        sendevent(EventHit, collider, 1)
+        changestateif(Lion_Eat, eventaccepted, 3.5s)
+        changestateif(Lion_Eat, (player -> stateflag & 0x8000000) && abs(x - player -> x) < 1.2m, 0)
+        x = seek(x, player -> x, 360deg)
+        z += 0.48m
+    }
+}
+
+state Lion_Eat { // S14
+    statusc 0
+    code(LionCanEat) {
+        if (LionCanEat) {
+            statusb |= FLAG_ROT_Y
+            troty = atan2(player -> trans)
+            trotx = 360deg
+            soundpitch((11.2 + rand(6.4)) * 52 >> 8)
+            sounddecay(0xC8)
+            soundsetup(6, self, 8)
+            soundplay([Tt46A], 1V)
+            playframes(LION_SWALLOW, 0.0, 54.0)
+            changestateifn(Lion_Squash, player -> stateflag & 0x8000000, 0)
+        }
+        interrupter = GLOBAL_126
+        ColosseumVoice = getfield(interrupter, 72.0)
+        SetColosseumVoice(25, 0x3332)
+        do {
+            playframes(LION_STAND, 0.0, 19.0)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Lion_Squash, e == EventJumpedOn || e == EventSlamHit || e == EventHit)
+        accevcstate(Lion_Fling, e == EventSpinHit || e == EventSlideHit || e == EventHitInvincible || e == EventFling)
+    }
+}
+
+state Lion_Fling { // S15
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Lion_Squash { // S16
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        EnemyDieClearFlags()
+        if (h == -1) {
+            return
+        }
+        sendevent(Event16, player, h)
+        spawn(9, 4, 1, getins(SetParticleColor_Lion_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_Lion_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+
+state STATE_17 { // S17
+    statusc 0
+    code() { }
+}
+
+state Trident_Shatter { // S18
+    statusc 0x22
+    code() {
+        playframes(TRIDENT_SHATTER, 0.0, 20.0)
+    }
+}
+
+state Taz_Intro_Pillars { // S19
+    statusc 0x22
+    code() {
+        statusb = 0x40000
+        do {
+            if (parent -> animseq == getanim(TAZ_INTRO_1)) {
+                setanim(TAZ_INTRO_3)
+            }
+            else if (parent -> animseq == getanim(TAZ_INTRO_2)) {
+                setanim(TAZ_INTRO_4)
+            }
+            else {
+                return
+            }
+            zindex = parent -> zindex
+            playframe(parent -> animframe)
+        } while (1)
+    }
+}
+
+state Colosseum_SkyBox { // S20
+    stateflag 0x10001
+    statusc 0
+    code() {
+        movetolist(1.0)
+        statusb = 0x40000
+        SetScale(0x199)
+        zindex = -0xFA0
+        sleepanim(0, COLOSSEUM_SKYBOX)
+    }
+    trans {
+        x = CAMTRANSX
+        y = CAMTRANSY
+        z = CAMTRANSZ
+    }
+}
+
+state Caesar_Cortex { // S21
+    statusc 0
+    code() {
+        zindex = 32
+        playframes(CAESAR_CORTEX_WAVE, 0.0, 66.0)
+        zindex = -50
+        playframes(67.0, 98.0)
+        playframes(CAESAR_CORTEX_WAVE, 0.0, 98.0)
+        changestate(Caesar_Cortex_Head)
+    }
+    trans {
+        changestateifn(Caesar_Cortex_Head, GLOBAL_119 & 0x400)
+    }
+}
+
+state Caesar_Cortex_Head { // S22
+    statusc 0
+    code() {
+        zindex = -20
+        sleepanim(0, CAESAR_CORTEX_HEAD)
+    }
+    trans {
+        roty = atan2(player -> trans)
+    }
+
+}

@@ -1,0 +1,238 @@
+#gool ScpOC 58 3
+
+#include "goolstdlib.gooc"
+
+#anim SCORPION      [ScomV] 17 1
+
+#spawn S_SCROPION   Scorpion
+
+var ScorpionPathMode, ScorpionCycleLen, mem3, mem4, ScorpionCycleOffs, ScorpionPathEndWait, mem7, ScorpionMaxFlingAngle, ScorpionBaseY
+
+state Scorpion { // S0
+    statusc 0
+    code(PathMode, CycleLen, CycleOffs, a4, a3, PathEndWait, a1, MaxFlingAngle) {
+        ScorpionPathMode = PathMode
+        ScorpionCycleLen = ((CycleLen * 1s) / 1.2s)
+        ScorpionCycleOffs = CycleOffs
+        ScorpionPathEndWait = PathEndWait
+        mem7 = a1
+        ScorpionMaxFlingAngle = MaxFlingAngle
+        if (a4 >= 0) ScorpionCycleLen = (a4 * 1s) / 1.2s;
+        if (a3 >= 0) ScorpionCycleOffs = (a3 * 1s) / 1.2s;
+        if (ScorpionPathMode == 0) {
+            mem3 = ScorpionCycleLen >> 1
+            mem4 = mem3
+            if (ScorpionPathEndWait) mem3 += 18;
+            ScorpionCycleLen = mem3 << 1
+        }
+        ScorpionCycleOffs = ((ScorpionCycleOffs * ScorpionCycleLen) >> 8)
+        if (ScorpionCycleOffs < 0) ScorpionCycleOffs = 0;
+        if (ScorpionCycleOffs >= ScorpionCycleLen) ScorpionCycleOffs = ScorpionCycleLen + -1;
+        {
+            var S3 = 0
+            pathprog = time(ScorpionCycleLen, ScorpionCycleOffs)
+            if (!ScorpionPathMode) {
+                if (ScorpionPathEndWait) {
+                    if (pathprog < mem4) {
+                        pathprog = ((pathprog * pathlen) / mem4)
+                    }
+                    else {
+                        pathprog -= mem4
+                        if (pathprog < 18) {
+                            S3 = 1
+                            pathprog = pathlen + -1
+                        }
+                        else {
+                            pathprog += -18
+                            if (pathprog < mem4) {
+                                S3 = 1
+                                pathprog = (((pathlen + -1) - (pathprog * pathlen) / mem4))
+                            }
+                            else {
+                                pathprog -= mem4
+                                pathprog = 0
+                            }
+                        }
+                    }
+                }
+                else {
+                    pathprog = (((pathprog) * (pathlen << 1) / ScorpionCycleLen))
+                    if (pathprog >= pathlen) {
+                        S3 = 1
+                        pathprog = (((pathlen << 1) + -1) - pathprog)
+                    }
+                }
+            }
+            else {
+                pathprog = ((pathprog * pathlen) / ScorpionCycleLen)
+            }
+            statusb = FLAG_TRACK_PATH_SIGN
+            calcpath(pathprog)
+            if (S3) {
+                troty = ((troty + 180deg) & 0xFFF)
+            }
+            roty = troty
+        }
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 24;
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_TRACK_PATH_SIGN
+        changestate(Scorpion_Walk)
+    }
+}
+
+state Scorpion_Walk { // S1
+    statusc 0
+    code() {
+        animseq = getanim(SCORPION)
+        do {
+            playframes(0.0, 8.0)
+            soundpitch(3.262)
+            soundplay([Sc1mA], 0.8V)
+            playframes(9.0, 16.0)
+            soundpitch(3.262)
+            soundplay([Sc1mA], 0.8V)
+        } while (1)
+    }
+    event(e, a) {
+        if (interrupter == player) {
+            rejevret(e == EventJumpedOn || e == EventSlamHit || e == EventSlideHit)
+        }
+        accevcstate(Scorpion_Squash, e == EventHit || e == EventFling)
+        accevcstate(Scorpion_Fling, e == EventSpinHit || e == EventHitInvincible)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+        var S3 = 0
+        pathprog = time(ScorpionCycleLen, ScorpionCycleOffs)
+        if (!ScorpionPathMode) {
+            if (ScorpionPathEndWait) {
+                if (pathprog < mem4) {
+                    pathprog = ((pathprog * pathlen) / mem4)
+                }
+                else {
+                    pathprog -= mem4
+                    if (pathprog < 18) {
+                        S3 = 1
+                        pathprog = pathlen + -1
+                    }
+                    else {
+                        pathprog += -18
+                        if (pathprog < mem4) {
+                            S3 = 1
+                            pathprog = (((pathlen + -1) - (pathprog * pathlen) / mem4))
+                        }
+                        else {
+                            pathprog -= mem4
+                            pathprog = 0
+                        }
+                    }
+                }
+            }
+            else {
+                pathprog = (((pathprog) * (pathlen << 1) / ScorpionCycleLen))
+                if (pathprog >= pathlen) {
+                    S3 = 1
+                    pathprog = (((pathlen << 1) + -1) - pathprog)
+                }
+            }
+        }
+        else {
+            pathprog = (((pathprog) * (pathlen + -1.0) / ScorpionCycleLen))
+        }
+        calcpath(pathprog)
+        if (S3) {
+            troty = ((troty + 180deg) & 0xFFF)
+        }
+        v0 = (degdist(roty, troty) >> 2)
+        if (v0 > 14.5deg) {
+            v0 = 14.5deg
+        }
+        if (v0 < -14.5deg){
+            v0 = -14.5deg
+        }
+        roty = ((roty + v0) & 0xFFF)
+    }
+}
+
+state Scorpion_Fling { // S2
+    stateflag 0x30
+    statusc 0x32
+    code(){
+        if (animseq == getanim(SCORPION)) {
+            if (!(animseq == getanim(SCORPION))) {
+                setanim(SCORPION, -1.0)
+            }
+            while (animframe < 16.0) {
+                playframe(animframe + 1.0)
+            }
+        }
+        do {
+            playframes(SCORPION, 0.0, 16.0)
+        } while (1)
+    }
+    trans {
+        once {
+            entitysetspawn(0)
+            SoundPitchDefault(52)
+            soundplay([fli0A], 0.17V + rand(0.05V))
+            vely = 0
+            statusb = 0
+            ScorpionBaseY = y
+            {
+                var S3, S4
+                S3 = (atan2(player -> trans) + 180deg)
+                S4 = degdist(mem7, S3)
+                if (abs(S4) > ScorpionMaxFlingAngle) {
+                    if (S4 >= 0) {
+                        S4 = ScorpionMaxFlingAngle
+                    }
+                    else {
+                        S4 = 0 - ScorpionMaxFlingAngle
+                    }
+                    S3 = mem7 + S4
+                }
+                velz = (0x1F40 * (cos(S3)) >> 4)
+                velx = (0x1F40 * (sin(S3)) >> 4)
+            }
+            rotz = rand(16.0)
+        }
+        changestateif(Kill_Entity, ScorpionBaseY - y >= 20.0m)
+        vely += - 2.0m
+        y = spd(y, vely)
+        x = spd(x, velx)
+        z = spd(z, velz)
+        rotx = spd(rotx, 180deg)
+
+    }
+}
+
+state Scorpion_Squash { // S3
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        playframe()
+        spawn(9, 4, 1, getins(SetParticleColor_Scorpion_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_Scorpion_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+
+state Kill_Entity { // S4
+    statusc 0
+    code(){ }
+}

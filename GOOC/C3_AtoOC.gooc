@@ -1,0 +1,868 @@
+#gool AtoOC 2 3
+
+#include "goolstdlib.gooc"
+
+#anim PUFFER_FISH          [Pu1eV] 17 1
+#anim PUFFER_FISH_INFLATE  [Pu2eV] 8 1
+#anim PUFFER_FISH_INFLATED [Pu3eV] 17 1
+
+#anim SHARK_SWIM           [Sh1eV] 27 1
+#anim SHARK_TURN           [ShaeV] 24 1
+#anim SHARK_ATTACK_1       [Sh2eV] 12 1
+#anim SHARK_SWIM_2         [Sh3eV] 21 1
+#anim SHARK_ATTACK_2       [Sh4eV] 26 1
+#anim CRASH_AIR_TANK       [ShteV] 76 1
+
+#anim EEL_ATTACK           [Ee1eV] 83 1
+#anim EEL_HIDE_1           [Ee2eV] 8 1
+#anim EEL_HIDE_2           [Ee4eV] 8 1
+#anim EEL_HIDE_3           [Ee6eV] 4 1
+#anim EEL_HIDE_4           [Ee7eV] 8 1
+#anim CRASH_PANTS          [EeseV] 51 1
+
+#anim PADDLE               [PadeV] 1 1
+#anim FAN                  [FaneV] 1 1
+#anim CORAL                [Cl3eV] 1 1
+#anim CORAL_BREAK          [Cl2eV] 13 1
+
+#sprite ATLANTIS_BUBBLES   [At1eT]
+#tex 0x808080 0 0 1 0 64 32 32 32
+#tex 0x808080 0 0 2 0 96 32 32 32
+
+#spawn S_PUFFER_FISH       PufferFish_Init
+#spawn S_SHARK             Shark_Init
+#spawn S_EEL               Eel_Spawn
+#spawn S_PADDLE            Paddle_Init
+#spawn S_FAN               Fan_Init
+#spawn S_FAN_CURRENT       Fan_Current
+#spawn S_SCUBA_TANK_1      Scuba_Tank_1
+#spawn S_BUBBLES           Atlantis_Bubbles
+#spawn S_CORAL             Coral
+#spawn S_SCUBA_TANK_2      Scuba_Tank_2
+#spawn S_SENTINEL          Paddle_Sentinel
+
+var EelCycleOffs, PaddleCycleLen, PaddleCycleOffs, PaddleInvert, PaddleRotationDir, FanSpeed,
+    SharkCycleOffs, mem2, SharkBaseCycleLen, SharkRotY, SharkSwimDur, SharkHalfCycleLen, SharkFullCycleLen, SharkVelY, SharkMaxY, SharkBasePathY,
+    PlayerInCurrent, CurrentPathMiddle, mem11, mem12
+
+state Eel_Spawn { // S0
+    statusc 0
+    code(ry, CycleOffs) {
+        roty = ry
+        EelCycleOffs = (CycleOffs * 5.35s) >> 8
+        if (EelCycleOffs >= 5.35s) {
+            EelCycleOffs = 5.3s
+        }
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        SetScale(1.75S)
+        animframe = 0
+        z = player -> z
+        changestate(Eel_Attack)
+    }
+}
+
+sub sub_15() {
+    if (animframe >= 0 && animframe <= 11.0) {
+        v0 = ((animframe * 11.2) / 11.0)
+        moda = 11.2 - v0
+    }
+    else if (animframe >= 46.0 && animframe <= 82.0) {
+        v0 = (((animframe + -46.0) * 11.2) / 36.0)
+        moda = v0
+    }
+    else {
+        moda = 0
+    }
+}
+
+sub sub_37() {
+    getvert(vvec, self, 0)
+    vecx = (abs(vecx - x) + -3.0m)
+    
+    if (vecx < 0) vecx = 0;
+    if (vecx > 2.0m) vecx = 2.0m;
+
+    moda = (11.2 - ((vecx * 11.2) / 2.0m))
+}
+
+state Eel_Attack { // S1
+    statusc 0
+    code() {
+        animseq = getanim(EEL_ATTACK)
+        do {
+            v0 = time(5.35s, EelCycleOffs)
+            if (v0 < 2.0s) {
+                animframe = 0
+            }
+            else if (animframe == 0) {
+                soundpitch(3.263)
+                sounddelay(5)
+                soundplay([Ee3eA], 1.0V)
+            }
+            v0 += -2.0s
+            animframe = v0 << 8
+            sub_15()
+            playframe()
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Atlantis_Creature_Kill, e == EventSpinHit || e == EventHitInvincible || e == EventHit || e == EventFling || e == EventSlideHit)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+        changestateif(Eel_Hide, eventaccepted)
+    }
+}
+
+inline sub EelAttackMotion(FinalFrame) {
+    animseq = getanim(EEL_ATTACK)
+    animframe += -1.0
+    do {
+        animframe += 1.0
+        sub_15()
+        playframe()
+    } while (animframe + 1.0 <= FinalFrame)
+    tpc = getins(sub_37)
+}
+
+inline sub EelHideAnim(anim){
+    playanim(0, anim)
+    playanim(1, anim)
+    playanim(2, anim)
+    playanim(2, anim)
+    playanim(3, anim)
+    playanim(4, anim)
+    playanim(5, anim)
+    playanim(6, anim)
+}
+
+state Eel_Hide { // S2
+    statusc 0
+    code() {
+        animseq = getanim(EEL_ATTACK)
+        entitysetspawn(0)
+        player -> v0 = - 1.0
+        player -> troty = roty + 180deg
+        if (animframe >= 0 && animframe <= 20.0) {
+            EelAttackMotion(20.0)
+            player -> v0 = 1.0
+            EelHideAnim(EEL_HIDE_1)
+        }
+        else if (animframe >= 20.0 && animframe <= 41.0) {
+            EelAttackMotion(41.0)
+            player -> v0 = 1.0
+            EelHideAnim(EEL_HIDE_1)
+        }
+        else if (animframe >= 41.0 && animframe <= 61.0) {
+            EelAttackMotion(61.0)
+            player -> v0 = 2.0
+            playanim(0, EEL_HIDE_3)
+            playanim(1, EEL_HIDE_3)
+            playanim(2, EEL_HIDE_3)
+            playanim(2, EEL_HIDE_3)
+        }
+        else {
+            EelAttackMotion(82.0)
+        }
+        soundpitch(2.903)
+        soundplay([Ee2eA], 1.0V)
+
+        do (var i = 0) {
+            player -> v0 = 4.0
+            playanim(0, EEL_HIDE_4, .2s)
+            EelHideAnim(EEL_HIDE_4)
+            soundpitch(2.903)
+            soundplay([Ee2eA], 1.0V)
+            i += 1.0
+        } while (i < 3.0)
+
+        soundpitch(3.262)
+        soundplay([Ee1eA], 1.0V)
+        player -> v0 = 6.0
+
+        while (scaley) {
+            scaley = seek(scaley, 0, spd(256.0))
+            if (scalex < 0) {
+                scalex = 0 - scaley
+            }
+            else {
+                scalex = scaley
+            }
+            scalez = scaley
+            playframe()
+        }
+        player -> v0 = 5.0
+        spawn(AtoOC, S_SCUBA_TANK_2, 1)
+        playnull(1.7s)
+        player -> v0 = 0
+        tpc = 0
+        sleep()
+    }
+}
+
+state Scuba_Tank_2 { // S3
+    stateflag 0x21
+    statusc 0
+    code() {
+        SetScale(1.75S)
+        zindex = 100
+        playframes(CRASH_AIR_TANK, 0.0, 50.0)
+        sleep()
+    }
+}
+
+state Paddle_Init { // S4
+    stateflag 0x4004081
+    statusc 0
+    code(CycleLen, CycleOffs, RotationDir, Invert, Config) {
+        if (var PipeConfig = Config; !PipeConfig) {
+            spawn(AtoOC, S_SENTINEL, 1, 4.0m, 180deg, 270deg)
+        }
+        else if (PipeConfig == 1) {
+            spawn(AtoOC, S_SENTINEL, 1, 4.0m, 180deg, 0deg)
+        }
+        else if (PipeConfig == 2) {
+            spawn(AtoOC, S_SENTINEL, 1, 4.0m, 270deg, 0deg)
+        }
+        PaddleCycleLen = (CycleLen * 80.0s) / 120.0s
+        PaddleCycleOffs = (CycleOffs * 80.0s) / 120.0s
+        PaddleRotationDir = RotationDir
+        PaddleInvert = Invert
+        if (Invert) {
+            scalex = 0 - abs(scalex)
+        }
+        rotz = 90deg
+        statusb = FLAG_SOLID_BOTTOM | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        soundpitch(1.450)
+        sounddecay(0xFE)
+        soundcount(0xFFFF)
+        soundplay([Pa1eA], 0.5V)
+        changestate(Paddle_Rotate)
+    }
+}
+
+sub ResolvePaddleCollider() {
+    var S3, S4, PlayerDeltaY, PlayerDeltaX, CosRX, SinRX, ElectrifiedZone
+    PlayerDeltaY = (player -> y - y >> 8)
+    PlayerDeltaX = (x - player -> x >> 8)
+    
+    CosRX = cos(rotx)
+    SinRX = sin(rotx)
+    S3 = (PlayerDeltaY * CosRX >> 4) - (PlayerDeltaX * SinRX >> 4)
+    S4 = (PlayerDeltaY * SinRX >> 4) + (PlayerDeltaX * CosRX >> 4)
+    if ((S3 >= 0 && S4 >= 0 || S3 < 0 && S4 < 0)) {
+        ElectrifiedZone = 0
+    }
+    else {
+        ElectrifiedZone = 1
+    }
+    if (PaddleInvert) {
+        if (ElectrifiedZone) {
+            ElectrifiedZone = 0
+        }
+        else {
+            ElectrifiedZone = 1
+        }
+    }
+    v0 = 0
+    if (collider) {
+        if (ElectrifiedZone) {
+            sendevent(EventShock2, collider, 100.0)
+            if (eventaccepted) {
+                soundpitch(3.262)
+                soundplay([Pa2eA], 1.0V)
+                v0 = 1
+            }
+        }
+    }
+}
+
+state Paddle_Rotate { // S5
+    stateflag 0x4004081
+    statusc 0
+    code(){
+        do {
+            v0 = (time(PaddleCycleLen, PaddleCycleOffs))
+            rotx = (v0 << 12) / PaddleCycleLen
+            if (PaddleRotationDir) {
+                rotx = 0 - rotx
+            }
+            if (!(time(25))) {
+                if (!rand(2)) {
+                    spawn(9, 25, 1, 0, 1.0)
+                }
+                else {
+                    spawn(9, 25, 1, 2.0, 3.0)
+                }
+            }
+            if (collider) {
+                ResolvePaddleCollider()
+                changestateif(Paddle_Sleep, v0 && player -> stateflag & 32)
+            }
+            playanim(0, PADDLE)
+        } while (1)
+    }
+}
+
+state Paddle_Sleep { // S6
+    stateflag 0x4004081
+    statusc 0
+
+    code(){
+        sleepanim(0, PADDLE)
+    }
+    trans {
+        moda = rand(0, 9.6)
+        if (collider) {
+            ResolvePaddleCollider()
+        }
+        changestateif(Paddle_Wake, frametime - statetime >= 1.0s)
+    }
+}
+
+state Paddle_Wake { // S7
+    stateflag 0x4004081
+    statusc 0
+    code() {
+        PaddleCycleOffs = (PaddleCycleOffs + (PaddleCycleLen >> 1)) % PaddleCycleLen
+        do {
+            v0 = (time(PaddleCycleLen, PaddleCycleOffs))
+            vecx = ((v0 << 12) / PaddleCycleLen)
+            if (PaddleRotationDir) {
+                vecx = (0 - vecx)
+            }
+            v0 = abs(degdist(vecx, rotx)) + -1.95deg
+            if (v0 < 0) {
+                v0 = 0
+            }
+            if (v0 > 30deg) {
+                v0 = 30deg
+            }
+            moda = (v0 * 215.95deg) / 30deg
+            changestateif(Paddle_Rotate, (!PaddleRotationDir && vecx > rotx && abs(degdist(vecx, rotx)) < 12deg) || (PaddleRotationDir && vecx < rotx && abs(degdist(vecx, rotx)) < 12deg))
+            if (collider) {
+                ResolvePaddleCollider()
+            }
+            playanim(0, PADDLE)
+        } while (1)
+    }
+}
+
+state Fan_Init {  // S8
+    statusc 0
+    code(Speed, FanFlip, CurrentID) {
+        player = objectget(CurrentID)
+        statusb = FLAG_COLLIDABLE
+        FanSpeed = Speed
+        speed = Speed
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (FanFlip) {
+            rotx = 180deg
+            speed = 0 - speed
+        }
+        changestate(Fan)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+state Fan { // S9
+    statusc 0
+    code() {
+        sleepanim(0, FAN)
+    }
+    event(e, a) {
+        if (e == EventTriggered) {
+            accev()
+            speed = 0 - speed
+        }
+    }
+    trans {
+        FanSpeed = seek(FanSpeed, speed, spd(400deg))
+        roty = spd(roty, FanSpeed)
+    }
+}
+
+state Coral { // S10
+    stateflag 0x4004081
+    statusc 0
+    code() {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 34;
+        sleepanim(0, CORAL)
+    }
+    event(e, a) {
+        accevcstate(Coral_Break, e == EventHit)
+    }
+}
+
+state Coral_Break { // S11
+    statusc 0
+    code() {
+        entitysetspawn(0)
+        statusb = 0
+        playframes(CORAL_BREAK, 0.0, 12.0)
+
+    }
+}
+
+state Shark_Init { // S12
+    statusc 0
+    code(CycleOffs, CycleLen, ry, MaxTrackY) {
+        SharkBaseCycleLen = CycleLen
+        SharkRotY = ry
+        SharkMaxY = MaxTrackY
+        SharkSwimDur = SharkBaseCycleLen * 1.1s
+        SharkHalfCycleLen = SharkSwimDur + 1s
+        SharkFullCycleLen = SharkHalfCycleLen << 1
+        SharkCycleOffs = (CycleOffs * SharkFullCycleLen) >> 8
+        if (SharkCycleOffs >= SharkFullCycleLen) {
+            SharkCycleOffs = SharkFullCycleLen + -1
+        }
+        mem2 = SharkCycleOffs + 0.5s
+        if (mem2 >= SharkFullCycleLen) {
+            mem2 = SharkFullCycleLen + -1
+        }
+        SharkVelY = 0
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        changestate(Shark_Swim)
+    }
+}
+
+state Shark_Swim { // S13
+    statusc 0
+    code() {
+        var CycleLen, ReversePath, CycleOffs
+        do {
+            CycleLen = time(SharkFullCycleLen, SharkCycleOffs)
+            CycleOffs = time(SharkFullCycleLen, mem2)
+            roty = SharkRotY
+            ReversePath = 0
+            if (CycleLen >= SharkHalfCycleLen) {
+                ReversePath = 1
+                CycleLen -= SharkHalfCycleLen
+                roty = ((roty + 180deg) & 0xFFF)
+            }
+            if (CycleOffs >= SharkHalfCycleLen) {
+                CycleOffs = ((SharkFullCycleLen + -1) - CycleOffs)
+            }
+            pathprog = ((CycleOffs * pathlen) / SharkHalfCycleLen)
+            if (CycleLen < SharkSwimDur) {
+                CycleLen %= 1.1s
+                animframe = CycleLen << 8
+                animseq = getanim(SHARK_SWIM)
+                if (!animframe || animframe == 12.0) {
+                    soundpitch(2.540)
+                    soundplay([Sh4eA], 0.3V)
+                }
+            }
+            else {
+                CycleLen -= SharkSwimDur
+                animframe = CycleLen << 8
+                animseq = getanim(SHARK_TURN)
+                if (!animframe) {
+                    soundpitch(3.262)
+                    soundplay([Sh5eA], 0.3V)
+                }
+            }
+            calcpath(pathprog)
+            SharkBasePathY = y
+            y += SharkVelY
+            z = player -> z
+            v0 = player -> y
+            if (v0 > SharkBasePathY + SharkMaxY) {
+                v0 = SharkBasePathY + SharkMaxY
+            }
+            if (v0 < SharkBasePathY - SharkMaxY) {
+                v0 = SharkBasePathY - SharkMaxY
+            }
+            vely = v0 - y
+            if (vely > SharkMaxY) {
+                vely = SharkMaxY
+            }
+            if (vely < 0 - SharkMaxY) {
+                vely = 0 - SharkMaxY
+            }
+            vely >>= 4
+            if (vely > 0.12m) {
+                vely = 0.12m
+            }
+            if (vely < -0.12m) {
+                vely = -0.12m
+            }
+            y += vely
+            SharkVelY = y - SharkBasePathY
+            playframe()
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Atlantis_Creature_Kill, e == EventSpinHit || e == EventHitInvincible || e == EventHit || e == EventFling || e == EventHitInvincible || e == EventSlideHit)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+        changestateif(Shark_Eat, eventaccepted)
+    }
+}
+
+inline sub SoundSharkEat(sound, vol) {
+    soundpitch(3.263)
+    soundplay(sound, vol)
+}
+
+state Shark_Eat { // S14
+    stateflag 0x21
+    statusc 0
+    code() {
+        statusb = FLAG_ROT_Y
+        troty = atan2(player -> trans)
+        trotx = (abs(degdist(roty, troty)) * 6)
+        SoundSharkEat([Sh2eA], 1.0V)
+        setanim(SHARK_ATTACK_1, -1.0)
+
+        do {
+            animframe += 1.0
+            if (animframe == 4.0) {
+                GAMEFLAGS &= ~0x10
+            }
+            playframe()
+        } while (animframe + 1.0 <= 11.0)
+
+        tpc = getins(sub_694)
+        SoundSharkEat([Sh1eA], 1.0V)
+
+        do (var i = 0) {
+            playframes(SHARK_SWIM_2, 0.0, 20.0)
+            i += 1.0
+        } while (i < 2.0)
+
+        if (!rand(2)) {
+            trotx = 360deg
+            troty = 0
+        }
+        setanim(SHARK_ATTACK_2, -1.0)
+        do {
+            animframe += 1.0
+            if (animframe == 8.0) {
+                SoundSharkEat([Sh3eA], 1.0V)
+                spawn(AtoOC, S_SCUBA_TANK_1, 1)
+            }
+            playframe()
+        } while (animframe + 1.0 <= 25.0)
+
+        SoundSharkEat([Sh5eA], 0.3V)
+        playframes(SHARK_TURN, 0.0, 23.0)
+        troty = roty + 180deg
+        roty = troty
+        vely = 0
+        setvel(2.0m)
+        statusb = FLAG_PHYSICS_ENGINE
+        do {
+            soundpitch(2.540)
+            soundplay([Sh4eA], 0.3V)
+            soundpitch(2.540)
+            sounddelay(12)
+            soundplay([Sh4eA], 0.3V)
+            playframes(SHARK_SWIM, 0.0, 26.0)
+        } while (1)
+    }
+    event => state Shark_Swim
+    trans {
+        x = seek(x, player -> x, spd(15.0m))
+        y = seek(x, player -> y, spd(15.0m))
+        z = seek(x, player -> z, spd(15.0m))
+    }
+}
+
+sub sub_694() __trans{
+    once {
+        groundy = y
+    }
+    y = groundy + (cos(frametime << 6) << 2)
+}
+
+state Scuba_Tank_1 { // S15
+    stateflag 0x21
+    statusc 0
+    code() {
+        zindex = 100
+        playframes(CRASH_AIR_TANK, 0.0, 75.0)
+        sleep()
+    }
+}
+
+state PufferFish_Init { // S16
+    statusc 0
+    code() {}
+}
+
+state PufferFish { // S17
+    statusc 0
+    code(){}
+}
+
+state PufferFish_Swim_Away { // S18
+    stateflag 0x21
+    statusc 0
+    code() {
+        statusb = FLAG_PHYSICS_ENGINE | FLAG_ROT_Y
+        trotx = 500deg
+        EnemyFlingSetDir()
+        setvel(2m)
+        if (animseq == getanim(PUFFER_FISH_INFLATED)) {
+            playframesback(PUFFER_FISH_INFLATE, 7.0, 0.0)
+        }
+        else {
+            if (animseq == getanim(PUFFER_FISH_INFLATE)) {
+                animseq = getanim(PUFFER_FISH_INFLATE)
+                animframe += 1.0
+                do {
+                    playframe(animframe + 1.0)
+                } while (animframe + -1.0 >= 0)
+            }
+        }
+        do {
+            if (animseq == getanim(PUFFER_FISH)) {
+                setanim(PUFFER_FISH, -1.0)
+            }
+            playframe(((animframe + 1.0) % 17))
+        } while (1)
+    }
+    event => state PufferFish
+    trans => sub sub_694
+}
+
+state Fan_Current { // S19
+    statusc 0
+    code(PathMiddle, CurrentVelocity, FanID) {
+        field_61 = PathMiddle
+        vely = CurrentVelocity
+        PlayerInCurrent = false
+        sounddecay(0xFE)
+        soundcount(0xFFFF)
+        soundpitch(0xFA)
+        soundplay([FaneA], 0.3V)
+        soundsetup(50, voice, 6)
+        soundpitch(0x999)
+        do {
+            v0 = false
+            var PathStartX, PathStartY, PathStartZ
+            var PathEndX, PathEndY, PathEndZ
+            save(vecx, vecy, vecz) {
+                calcpath(pathlen + -1.0, vvec)
+                PathEndX = vecx
+                PathEndY = vecy
+                PathEndZ = vecz
+                calcpath(0, vvec)
+                PathStartX = vecx
+                PathStartY = vecy
+                PathStartZ = vecz
+            }
+            if (vely > 0 && PathStartY < PathEndY || vely <= 0 && PathStartY > PathEndY) {
+                calcpath(0, vtrans)
+            }
+            else {
+                calcpath(pathlen + -1.0)
+            }
+            do {
+                if (player -> y < PathStartY && player -> y > PathEndY && player -> x > PathStartX - field_61 && player -> x < PathStartX + field_61) {
+                    sendevent(Event50, player, velx, vely, velz)
+                    if (!PlayerInCurrent) {
+                        PlayerInCurrent = true
+                        CurrentPathMiddle = ((PathStartY + PathEndY) >> 1)
+                        {
+                            var PrevCurrentVelocity = vely
+                            if (player -> y > CurrentPathMiddle) {
+                                vely = 0 - abs(vely)
+                            }
+                            else {
+                                vely = abs(vely)
+                            }
+                            if (!((vely ^ PrevCurrentVelocity) >= 0)) {
+                                if (FanID) {
+                                    interrupter = objectget(FanID)
+                                    sendevent(EventTriggered, interrupter)
+                                    interrupter = objectget(FanID + 1.0)
+                                    sendevent(EventTriggered, interrupter)
+                                    statetime = frametime
+                                    tpc = getins(sub_1295)
+                                    soundsetup(50, voice, 6)
+                                    soundsetup(0, voice, 2, 0)
+                                    soundpitch(0x4CC)
+                                }
+                                v0 = true
+                            }
+                        }
+                    }
+                }
+                else {
+                    PlayerInCurrent = false
+                }
+                if (!time(10) && FRAMETIME < 1.4s) {
+                    spawn(AtoOC, S_BUBBLES, 1, velx, vely, abs(PathStartY - PathEndY), field_61 + -0.4m)
+                }
+                playnull()
+            } while (1)
+        } while (v0)
+    }
+    event(e, a) {
+        if (e == EventTriggered) {
+            vely = 0 - vely
+            v0 = true
+        }
+    }
+}
+
+sub sub_1295(){
+    if (frametime - statetime >= 2.0s) {
+        soundsetup(50, voice, 6)
+        soundsetup(0x1332, voice, 2, 0)
+        soundpitch(0x999)
+        tpc = 0
+    }
+}
+
+state Atlantis_Bubbles { // S20
+    statusc 0
+    code(a1, a0) {
+        scale = 0.2S + rand(0.2S)
+        scaley = scalex
+        troty = rand(360deg)
+        trotx = a0
+        trotz = a0
+        SetVec(x, y, z)
+        do {
+            vecy = spd(vecy, parent -> vely << 1)
+            troty = spd(troty, 360deg)
+            if (!rand(10)) {
+                trotz = rand(a0)
+            }
+            trotx = seek(trotx, trotz, spd(2.0m))
+            save(trotx, troty, trotz, vecx, vecy, vecz) {
+                trotx = 0
+                trotz = 0
+                vectransf2(vvec, 0, trotx, 0, 0)
+            }
+            playanim(0, ATLANTIS_BUBBLES)
+        } until(abs(y - parent -> y) > a1)
+    }
+}
+
+state Atlantis_Creature_Kill { // S21
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        playframe()
+
+        do (var i = 0) {
+            spawn(9, 8, 1, -1.0, 0, x + randi(-1m, 1m), y + (2m + rand(4m)), z + randi(-1m, 1m), 0.2S, 1m + rand(1m))
+            i += 1.0
+        } while (i < 10.0)
+
+        if (!rand(2)) {
+            SoundPitchDefault(23)
+            soundplay([Bu10A], 0.9V)
+        }
+        else {
+            SoundPitchDefault(23)
+            soundplay([Bu10A], 0.9V)
+        }
+        playframe()
+    }
+}
+
+state Paddle_Sentinel { // S22
+    statusc 0x32
+    code(Radius, PipeEntrance, PipeExit) {
+        v0 = false
+        do {
+            z = player -> z
+            vecx = player -> x
+            vecy = player -> y + 0.4m
+            vecz = player -> z
+            stalltime = distance(vec, self, DIST_EXACT)
+            field_63 = atan((player -> y + 0.4m) - y, player -> x - x)
+            field_61 = ((PipeEntrance == -1 || abs(degdist(field_63, PipeEntrance)) > 12deg) && (PipeExit == -1 || abs(degdist(field_63, PipeExit)) > 12deg))
+            if (stalltime < Radius) {
+                v0 = true
+            }
+            else if (v0 && field_61) {
+                player -> x = x + (((((player -> x - x) >> 8) * (Radius >> 8)) / (stalltime >> 8)) << 8)
+                player -> y = y + (((((player -> y - y) >> 8) * (Radius >> 8)) / (stalltime >> 8)) << 8)
+            }
+            else if ((stalltime < Radius + 1m) && field_61) {
+                field_62 = -1
+                if (abs(degdist(field_63, PipeEntrance + -12deg)) < 20deg) {
+                    field_62 = PipeEntrance + -11deg
+                }
+                else if (abs(degdist(field_63, PipeEntrance + 12deg)) < 20deg) {
+                    field_62 = PipeEntrance + 11deg
+                }
+                else if (abs(degdist(field_63, PipeExit + -12deg)) < 20deg) {
+                    field_62 = PipeExit + -11deg
+                }
+                else if (abs(degdist(field_63, PipeExit + 12deg)) < 20deg) {
+                    field_62 = PipeExit + 11deg
+                }
+                unless(field_62 == -1) {
+                    player -> x = x + (stalltime * cos(field_62)) >> 12
+                    player -> y = y + ((stalltime * sin(field_62)) >> 12) - 0.4m
+                }
+                v0 = false
+            }
+            else {
+                v0 = false
+            }
+            playnull()
+        } while (1)
+    }
+}
+
+/*
+Eel Vars:
+EelCycleOffs           = mem2
+
+Fan Vars:
+FanSpeed               = mem1
+
+Paddle Vars:
+PaddleCycleLen         = mem1
+PaddleCycleOffs        = mem2
+PaddleInvert           = mem3
+PaddleRotationDir      = mem4
+     
+Shark Vars:
+SharkCycleOffs         = mem1
+SharkVar               = mem2
+SharkBaseCycleLen      = mem3
+SharkRotY              = mem4
+SharkSwimDur           = mem5
+SharkHalfCycleLen      = mem6
+SharkFullCycleLen      = mem7
+SharkVelY              = mem8
+SharkMaxY              = mem9
+SharkBasePathY         = mem10
+
+Puffer Vars:
+PufferPathCycleOffs    = mem1
+PufferPathCycleLen     = mem2
+PufferPathHalfCycleLen = mem3
+PufferCycleOffs        = mem4
+PufferCycleLen         = mem5
+PufferInflateDur       = mem6
+PufferDeflateDur       = mem7
+PufferInflateFrames    = mem8
+PufferDeflateFrames    = mem9
+PufferBaseY            = mem10
+
+FanCurrent vars:
+PlayerInCurrent        = mem2
+CurrentPathMiddle      = mem3
+*/
+
+

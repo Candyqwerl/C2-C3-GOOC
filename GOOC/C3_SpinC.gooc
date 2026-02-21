@@ -1,0 +1,166 @@
+#gool SpinC 77 3
+
+#include "goolstdlib.gooc"
+
+#anim SPINNER_OPEN          [Sp1gV]  11 1
+#anim SPINNER_SPIKE         [Sp2gV] 14 1
+#anim SPINNER_FLIP1         [Sp3gV] 24 1
+#anim SPINNER_FLIP2         [Sp4gV] 26 1
+
+#spawn S_SPINNER           Spinner_Init
+
+event EventJumpedOn         => state Spinner_Squash
+event EventHit              => state Spinner_Flip
+event EventSpinHit          => state Spinner_Fling
+event EventHitInvincible    => state Spinner_Squash
+event EventFling            => state Spinner_Fling
+event EventSlideHit         => state Spinner_Fling
+event EventSlamHit          => state Spinner_Squash
+
+var SpinnerExtendedTime, SpinnerRetractedTime, mem3
+
+state Spinner_Init { // S0
+    code(RetractedTime, ExtendedTime) {
+        SpinnerRetractedTime = RetractedTime * 80s / 120s
+        SpinnerExtendedTime = ExtendedTime * 1s / 1.2s
+        mem3 = 2.0m
+        groundy = y
+        zindex = 32
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_SOLID_GROUND
+        if (entitygetstate(2)) {
+            statusc = 0
+            changestate(Spinner_Flip)
+        }
+        else {
+            changestate(Spinner_Spike)
+        }
+    }
+}
+
+state Spinner_Open { // S1
+    statusc 0
+    code(){
+        if (animseq == getanim(SPINNER_SPIKE)) {
+            soundpitch(2.286)
+            soundplay([Sp5rA], 1.0V)
+            playframesback(SPINNER_OPEN, 10.0, 0.0)
+        }
+        WaitFrame(0, SPINNER_OPEN, SpinnerRetractedTime)
+        soundpitch(3.263)
+        soundplay([Sp5rA], 1.0V)
+        playframes(SPINNER_OPEN, 0.0, 10.0)
+        changestate(Spinner_Spike)
+    }
+    trans {
+        sendevent(EventHit, collider, 0)
+    }
+}
+state Spinner_Spike { // S2
+    stateflag 0x41
+    statusc 0
+    code(){
+        soundpitch(3.263)
+        sounddelay(7)
+        soundplay([Sp3rA], 1.0V)
+        playframes(SPINNER_SPIKE, 0.0, 13.0)
+        WaitFrame(animframe, SpinnerExtendedTime)
+        soundpitch(3.263)
+        sounddelay(5)
+        soundplay([Sp2rA], 1.0V)
+        playframesback(SPINNER_SPIKE, 13.0, 0.0)
+        changestate(Spinner_Open)
+    }
+    event(e, a) {
+        rejevret(e == EventJumpedOn || e == EventSpinHit || e == EventSlideHit || e == EventSlamHit)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+}
+state Spinner_Flip { // S3
+    stateflag 0x3
+    statusc 0
+    code(){
+        statusb |= FLAG_PHYSICS_ENGINE | FLAG_GRAVITY
+        vely = 0
+        if (animseq == getanim(SPINNER_OPEN) && animframe > 2.0) {
+            animseq = getanim(SPINNER_OPEN)
+            animframe = ((animframe + -2.0) + 2.0)
+            do {
+                playframe(animframe + -2.0)
+            } while (animframe + -2.0 >= 0)
+        }
+        else if (animseq == getanim(SPINNER_SPIKE)) {
+            soundpitch(3.263)
+            soundplay([Sp2rA], 1.0V)
+            setanim(SPINNER_OPEN, 12.0)
+            do {
+                playframe(animframe + -2.0)
+            } while (animframe + -2.0 >= 0)
+        }
+        if (entitygetstate(2)) {
+            playanim(23, SPINNER_FLIP1)
+        }
+        else {
+            soundpitch(3.263)
+            soundplay([Sp1rA], 1.0V)
+            playframes(SPINNER_FLIP1, 0.0, 23.0)
+        }
+        entitysetstate(1)
+        statetime = frametime
+        do {
+            playframe()
+        } until(frametime - statetime >= 6s)
+
+        playframes(SPINNER_FLIP2, 0.0, 25.0)
+        entitysetstate(0)
+        statusb &= ~FLAG_PHYSICS_ENGINE
+        changestate(Spinner_Open)
+    }
+    event(e, a) {
+        if (e == EventHit) {
+            accev()
+            statetime = frametime
+        }
+    }
+}
+
+state Spinner_Fling { // S4
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Spinner_Squash { // S5
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, 0, h)
+        statusb &= ~(FLAG_ROT_Y | FLAG_COLLIDABLE | FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | 0x8000)
+        spawn(9, 4, 1, getins(SetParticleColor_Spinner_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_Spinner_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+

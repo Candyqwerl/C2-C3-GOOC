@@ -1,0 +1,259 @@
+#gool JunOC 15 5
+
+#include "goolstdlib.gooc"
+
+#anim BUTTERFLY1         [JuBbV] 8 0
+#anim BUTTERFLY2         [JubbV] 8 0
+#anim BUTTERFLY3         [JufbV] 8 0
+#anim JUNGLE_LEAF        [JuLbV] 112 1
+#anim CANOPY             [canZV] 68 1
+#anim CANOPY_LEAF        [leaZV] 112 1
+#anim SWALLUP_IDLE       [sw1bV] 14 1
+#anim SWALLUP_WAKE       [sw2bV] 5 1
+#anim SWALLUP_FLY        [sw3bV] 17 1
+
+#spawn S_BUTTERFLY1      Butterfly_Spawn
+#spawn S_BUTTERFLY2      Butterfly_Spawn
+#spawn S_BUTTERFLY3      Butterfly_Spawn
+#spawn S_CANOPY_LEAF     Canopy_Leaf   
+#spawn S_JUNGLE_LEAF     Jungle_Leaf   
+#spawn S___5             Unused
+#spawn S___6             Unused
+#spawn S___7             Unused
+#spawn S___8             Unused
+#spawn S_CANOPY          Canopy_Spawn
+#spawn S_SWALLUP         Swallup_Spawn
+#spawn S_FLYING_SWALLUP  Flying_Swallup
+
+var LeafBaseY, LeafBaseX, LeafBaseZ
+
+state Butterfly_Spawn { // S0
+    code() {
+        zindex = 50
+        trotx = 720deg
+        yzapproach = 5deg
+        statusb = FLAG_ROT_Y | FLAG_TRACK_PATH_SIGN | FLAG_TRACK_PATH_ROT
+
+        unless(spawn == self) {
+            if (var r = rand(3); !r) {
+                animseq = getanim(BUTTERFLY1)
+            }
+            else if (r == 1) {
+                animseq = getanim(BUTTERFLY2)
+            }
+            else if (r == 2) {
+                animseq = getanim(BUTTERFLY3)
+            }
+        }
+        else {
+            if (spawn == S_BUTTERFLY2) {
+                animseq = getanim(BUTTERFLY2)
+            } 
+            else {
+                animseq = getanim(BUTTERFLY3)
+            }
+        }
+        changestate(Butterfly_Fly)
+    }
+}
+
+state Butterfly_Fly { // S1
+    code() {
+        SetVel(0, 0, 0)
+        do {
+            playframe(0)
+            playframe(3.0)
+            playframe(7.0)
+            playframe(3.0)
+        } while (1)
+    }
+    trans {
+        unless(STATUS_FIRSTFRAME) {
+            calcpath(loopseek(pathprog, pathlen + -0.98, 0.02))
+            velx += randi(-0.18m, 0.18m)
+            x += velx
+            vely += randi(-0.09m, 0.09m)
+            y += vely
+            velz += randi(-0.18m, 0.18m)
+            z += velz
+            changestateif(Butterfly, STATUS_PATH_END)
+        }
+    }
+}
+
+state Butterfly { // S2
+    code() {
+        while (velx || vely || velz) {
+            playframe(0)
+            playframe(3.0)
+            playframe(7.0)
+            playframe(3.0)
+        }
+
+        do (var start = frametime) {
+             playframe(0.0, 0.12s)
+             playframe(1.0, 0.12s)
+             playframe(2.0, 0.12s)
+             playframe(3.0, 0.48s)
+             playframe(2.0, 0.12s)
+             playframe(1.0, 0.12s)
+             playframe(0.0, 0.36s)
+        } while (frametime - start < 7.2s)
+        changestate(Butterfly_Fly)
+    }
+    trans {
+        calcpath(pathprog, vvec)
+        velx = seek(velx, 0, 0.08m)
+        x = velx + vecx
+        vely = seek(vely, 0, 0.08m)
+        y = vely + vecy
+        velz = seek(velz, 0, 0.08m)
+        z = velz + vecz
+    }
+}
+
+state Canopy_Spawn { // S3
+    code() {
+        statusb = FLAG_COLLIDABLE
+        sleepanim(0, CANOPY, 2.52s)
+    }
+    trans {
+        changestateif(Canopy_Touched, collider)
+    }
+}
+
+state Canopy_Touched { // S4
+    code() {
+        do (var i = 0) {
+            spawn(JunOC, S_CANOPY_LEAF, 1, i)
+            i += 1.0
+        } while (i < 3.0)
+        setanim(CANOPY, 0)
+        playframes(0.0, 67.0)
+        playanim(0, CANOPY, 1.2s)
+        changestate(Canopy_Spawn)
+    }
+}
+
+state Canopy_Leaf { // S5
+    code(LeafCount) {
+        groundy = y
+        getvert(0, creator, LeafCount)
+        velx = 0
+        vely = 0 - 0.4m + -rand(0, 0.5m)
+        velz = 0
+        statusb = FLAG_PHYSICS_ENGINE
+        while (groundy - y < 10m) {
+            playframes(CANOPY_LEAF, 0.0, 111.0)
+        }
+    }
+    trans {
+        nofirst{
+            velx += randi(-0.05m, 0.05m)
+            velz += randi(-0.05m, 0.05m)
+            roty = spd(roty, 30deg)
+        }
+    }
+}
+
+state Jungle_Leaf { // S6
+    code() {
+        statusb = FLAG_INVISIBLE
+        zindex = 50
+        y += 6m
+        LeafBaseX = x
+        LeafBaseY = y
+        LeafBaseZ = z
+        v0 = rand(3.6s)
+        playanim(0, JUNGLE_LEAF, .1s)
+        playanim(0, JUNGLE_LEAF, .1s)
+        playanim(0, JUNGLE_LEAF, .1s)
+        WaitFrame(0, JUNGLE_LEAF, v0)
+
+        do {
+            x = LeafBaseX
+            y = LeafBaseY
+            z = LeafBaseZ
+            velx = 0
+            vely = -0.2m - rand(0.4m)
+            velz = 0
+            statusb = FLAG_PHYSICS_ENGINE
+
+            while (LeafBaseY - y < 6m) {
+                playframes(JUNGLE_LEAF, 0.0, 111.0)
+            }
+            statusb = 0
+            v0 = 60 + rand(0, 60)
+            WaitFrame(0, JUNGLE_LEAF, v0)
+            statusb = FLAG_PHYSICS_ENGINE
+            velx = randi(-9m, 9m)
+            vely = randi(0, 0.2m)
+            velz = randi(-9m, 9m)
+            playframes(JUNGLE_LEAF, 0.0, 111.0)
+
+        } while (1)
+    }
+    trans {
+        nofirst {
+            velx += randi(-0.05m, 0.05m)
+            velz += randi(-0.05m, 0.05m)
+        }
+    }
+}
+
+state Swallup_Spawn { // S7
+    code() {
+        zindex = 24
+        SetScale(2.0S)
+        roty = rand(16.0)
+        do {
+            playframes(SWALLUP_IDLE, 0.0, 13.0)
+            changestateif(Swallup_Fly, distance(player, DIST_NO_Y) < 5m)
+
+            if (var r = rand(4); !r) {
+                r = 0
+                do {
+                    playanim(0, SWALLUP_IDLE)
+                    playanim(0, SWALLUP_IDLE)
+                    playanim(0, SWALLUP_IDLE)
+                    playanim(0, SWALLUP_IDLE)
+                    r += 1.0
+                } while (r < 7.0)
+            }
+        } while (1)
+    }
+}
+
+state Swallup_Fly { // S8
+    code(){
+        if (!rand(3)) {
+            soundpitch(3.263)
+            soundplay([BCFuA], 1.0V)
+        }
+        else {
+            soundpitch(3.263)
+            soundplay([BFluA], 1.0V)
+        }
+        statusb = FLAG_TRACK_PATH_SIGN | FLAG_ROT_Y
+        playanim(0, SWALLUP_WAKE)
+        playanim(1, SWALLUP_WAKE)
+        playanim(2, SWALLUP_WAKE)
+        playanim(3, SWALLUP_WAKE)
+        playanim(4, SWALLUP_WAKE)
+        trotx = 180deg
+        sleepframes(SWALLUP_FLY, 0.0, 16.0)
+    }
+    trans {
+        pathprog = spd(pathprog, 18.0)
+        changestateif(Swallup_Sleep, pathprog >= pathlen)
+        calcpath(pathprog)
+    }
+}
+
+state Swallup_Sleep { // S9
+    stateflag 0x20
+    statusc 0
+    code() {
+        sleepnull()
+    }
+}

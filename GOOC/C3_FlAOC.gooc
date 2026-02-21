@@ -1,0 +1,152 @@
+#gool FlAOC 41 3
+
+#include "goolstdlib.gooc"
+
+#anim FLAME_ASS_RTL    [FP1iV] 96 1
+#anim FLAME_ASS_LTR    [FP2iV] 64 1
+
+#spawn S_FLAMEASS      FlameAss_Init
+
+var PlayerCollided
+
+state FlameAss_Init { // S0
+    stateflag 0x1
+    statusc 0
+    code(ry) {
+        roty = ry
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 28;
+        SetScale(1.2S)
+        statusb = FLAG_COLLIDABLE | 0x100000 | 0x40000
+        changestate(FlameAss)
+    }
+}
+
+sub GetPlayerRangeID(){
+    var S3, S4, S5, S6
+    vecx = player -> x - x >> 8
+    vecz = player -> z - z >> 8
+    S5 = cos(0 - roty)
+    S6 = sin(0 - roty)
+    S4 = ((vecz * S5) - (vecx * S6) >> 4)
+    S3 = ((vecz * S6) + (vecx * S5) >> 4)
+    vecz = distance(player, DIST_EXACT | DIST_NO_Y)
+    vecx = v0
+    v0 = 0
+    if (vecz <= 1.60m) {
+        v0 = 2
+        return
+    }
+    if (vecz <= vecx + 1.60m) {
+        v0 = 1
+    }
+    misc = S4 >= 0
+    if (misc) {
+        misc = (abs(S3) * 0.375 >> 8 <= S4)
+        if (misc) {
+            misc = vecz > 1.60m
+        }
+    }
+    if (!misc) {
+        misc = 0
+    }
+    if (misc) {
+        v0 = 3
+    }
+}
+
+state FlameAss { // S1
+    code() {
+        PlayerCollided = 0
+        groundy = y
+        soundpitch(3.262)
+        soundcount(0xFFFF)
+        sounddecay(0.780)
+        soundplay([FA1iA], 1V)
+        do {
+            playframes(FLAME_ASS_RTL, 0.0, 94.0)
+            playframes(FLAME_ASS_LTR, 0.0, 62.0)
+        } while (1)
+    }
+    event(e, a) {
+        if (!e) {
+            v0 = 0
+            GetPlayerRangeID()
+            if (var PlayerRangeID = v0; PlayerRangeID == 1 || PlayerRangeID == 2) {
+                accevcstate(e == EventJumpedOn, FlameAss_Squash)
+            }
+        }
+        if (e == EventSpinHit || e == EventHitInvincible || e == EventSlideHit || e == EventSlamHit) {
+            v0 = 1.0m
+            GetPlayerRangeID()
+            if (var PlayerRangeID = v0; PlayerRangeID == 1 || PlayerRangeID == 2) {
+                accevcstate(FlameAss_Fling, e == EventSpinHit || e == EventHitInvincible || e == EventSlideHit)
+                accevcstate(FlameAss_Squash, e == EventSlamHit)
+            }
+        }
+        accevcstate(FlameAss_Squash, e == EventHit)
+        accevcstate(FlameAss_Fling, e == EventHitInvincible || e == EventFling)
+    }
+    trans {
+        nofirst{
+            if (collider) {
+                PlayerCollided += 1
+            }
+            else {
+                PlayerCollided = 0
+            }
+            if (PlayerCollided >= 1) {
+                v0 = 0
+                GetPlayerRangeID()
+                var PlayerRangeID = v0
+                if (PlayerRangeID == 2) {
+                    sendevent(EventHit, collider, 100.0)
+                }
+                else {
+                    sendeventif(EventBurn, collider, PlayerRangeID == 3, 100.0)
+                }
+            }
+            stalltime = ((animframe >> 8) & 15)
+        }
+    }
+}
+
+state FlameAss_Fling { // S2
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state FlameAss_Squash {
+    stateflag 0x21
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        playframe()
+        spawn(9, 4, 1, getins(SetParticleColor_FlameAss_Squash), 1)
+        playframe()
+    }
+}
+
+sub SetParticleColor_FlameAss_Squash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}

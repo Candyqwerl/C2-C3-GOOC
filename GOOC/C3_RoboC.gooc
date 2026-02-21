@@ -1,0 +1,282 @@
+#gool RoboC 92 3
+
+#include "goolstdlib.gooc"
+
+#anim ROBOT_STAND       [Me1rV] 16 1
+#anim ROBOT_SHOOT_RIGHT [Me2rV] 17 1
+#anim ROBOT_SHOOT_LEFT  [Me3rV] 17 1
+#anim ROBOT_FLIP        [Me4rV] 36 1
+#anim ROBOT_HIDE        [Me5rV] 13 1
+#anim ROBOT_UNHIDE      [Me6rV] 28 1
+#anim ROCKET            [Me7rV] 27 1
+#anim ROBOT_DESTROYED   [Me8rV] 20 1
+
+#sprite LIGHT[Cr20T]
+#tex 0xFFFFFF 0 0 5 0 928 32 32 32
+
+#spawn S_ROBOT         Robot_spawn
+#spawn S_ROCKET        Rocket_Spawn
+
+event Event29 => state Robot_Destroyed
+
+var RobotWakeZOffs, RobotShotCount
+
+state Robot_spawn { // S0
+    stateflag 0x4004081
+    statusc 0x12
+    code(ry, z_off) {
+        roty = ry
+        RobotWakeZOffs = z_off
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        setanim(ROBOT_STAND, 0)
+        changestate(Robot_Sleep)
+    }
+}
+
+state Robot_Sleep { // S1
+    stateflag 0x4004081
+    statusc 0x12
+    code() {
+        RobotShotCount = 0
+        unless(animseq == getanim(ROBOT_STAND)) {
+            setanim(ROBOT_STAND, 15.0)
+        }
+        if (animframe > 8.0) {
+            soundsetup(7, self, 8)
+            soundpitch(2.797)
+            sounddelay(6)
+            soundplay([Me1rA], 1.0V)
+        }
+        animframe += 1.0
+        do {
+            playframe(animframe + -1.0)
+        } while (animframe + -1.0 >= 0)
+        sleepanim(0, ROBOT_STAND)
+    }
+    event(e, a) {
+        accevcstate(Robot_Destroyed, e == EventHitInvincible && player -> invincible == 5)
+    }
+    trans {
+        changestateif(Robot_Wake, distance(player) < RobotWakeZOffs)
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+state Robot_Wake { // S2
+    event => state Robot_Sleep
+    stateflag 0x4004081
+    statusc 0x10
+    code() {
+        unless(animseq == getanim(ROBOT_STAND)) {
+            setanim(ROBOT_STAND, 15.0)
+        }
+        else {
+            soundpitch(4.0)
+            soundsetup(7, self, 8)
+            soundplay([Me1rA], 1.0V)
+        }
+        playframes(0.0, 15.0)
+        sleepanim(0, ROBOT_SHOOT_RIGHT)
+    }
+    trans {
+        changestateif(Robot_Sleep, distance(player) > RobotWakeZOffs)
+        if (animseq == getanim(ROBOT_SHOOT_RIGHT)) {
+            changestateif(Robot_Hide, RobotShotCount >= 4.0)
+            if (RobotShotCount & 1.0) {
+                changestate(Robot_Shoot_Right)
+            }
+            else {
+                changestate(Robot_Shoot_Left)
+            }
+        }
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+state Robot_Shoot_Right { // S3
+    event => state Robot_Sleep
+    stateflag 0x40040C1
+    statusc 0x10
+    code() {
+        spawn(RoboC, S_ROCKET, 1, 0, roty, 13.0m)
+        playframes(ROBOT_SHOOT_RIGHT, 0.0, 16.0)
+        RobotShotCount += 1.0
+        changestate(Robot_Wake)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+state Robot_Shoot_Left { // S4
+    event => state Robot_Sleep
+    trans => state Robot_Shoot_Right
+    stateflag 0x40040C1
+    statusc 0x10
+    code() {
+        spawn(RoboC, S_ROCKET, 1, 1.0, roty, 13.0m)
+        playframes(ROBOT_SHOOT_LEFT, 0.0, 16.0)
+        RobotShotCount += 1.0
+        changestate(Robot_Wake)
+    }
+}
+
+state Robot_Hide { // S5
+    event => state Robot_Sleep
+    stateflag 0x40040C1
+    statusc 0x10
+    code() {
+        soundpitch(4.0)
+        sounddecay(0.625)
+        soundsetup(7, self, 8)
+        sounddelay(12)
+        soundplay([Me5rA], 1.0V)
+
+        playframes(ROBOT_FLIP, 0.0, 13.0)
+        epc = getins(sub_182)
+        stateflag &= ~0x40
+        playframes(13.0, 36.0)
+ 
+        do (var i = 0) {
+            playframes(ROBOT_HIDE, 0.0, 12.0)
+            i += 1.0
+        } while (i < 6.0)
+            
+        soundpitch(3.2)
+        sounddecay(0.625)
+        soundsetup(7, self, 8)
+        sounddelay(16)
+        soundplay([Me5rA], 1.0V)
+
+        playframes(ROBOT_UNHIDE, 0.0, 7.0)
+        stateflag |= 64
+        epc = 0
+        playframes(8.0, 27.0)
+        RobotShotCount = 0
+        changestate(Robot_Wake)
+    }
+    trans {
+        if ((player -> stateflag & 16) && (player -> y > y + 1m) && !(stateflag & 64)) {
+            stateflag &= ~0x4000
+            sendevent(EventHit, collider, 100.0)
+        }
+        else {
+            stateflag |= 0x4000
+            sendevent(Event24, collider, 100.0)
+        }
+    }
+}
+
+sub sub_182(e, a) {
+    accevcstate(Robot_Destroyed, e == EventHit)
+    accevcstate(Robot_Fling, e == EventSpinHit && player -> y > y + 1m)
+    accevcstate(Robot_Destroyed, e == EventHitInvincible && player -> invincible == 5)
+    rejevret(e == EventSpinHit || e == EventSlideHit || e == EventJumpedOn || e == EventSlamHit)
+    sendevent(Event24, player, 100.0)
+
+}
+
+state Robot_Destroyed { // S6
+    stateflag 0x40040A2
+    statusc 0x12
+    code(h){
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        statusb = 0x40000
+        soundpitch(3.262)
+        soundsetup(7, self, 8)
+        sounddecay(0.977)
+        soundsetup(0, self, 5)
+        soundplay([Me2rA], 1.0V)
+        spawn(9, 4, 1, getins(SetParticleColor), 1)
+        playframes(ROBOT_DESTROYED, 0.0, 19.0)
+    }
+}
+
+sub SetParticleColor() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(5, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(13, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+
+state Robot_Fling { // S7
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+state Rocket_Spawn { // S8
+    stateflag 0x1
+    statusc 0x10
+    code(RobotArm, yrot, RocketVelocity) {
+        soundpitch(4.0)
+        soundsetup(6, self, 8)
+        sounddecay(0xC8)
+        soundplay([Me3rA], 1.0V)
+        
+        soundpitch(3.262)
+        sounddecay(0.625)
+        soundcount(0xFFFF)
+        soundplay([Me4rA], 0.6V)
+        getvert(0, creator, RobotArm)
+        SetRot(0)
+        troty = yrot
+        roty = troty
+        setvel(RocketVelocity)
+        zindex = 40
+        statusb = FLAG_PHYSICS_ENGINE | FLAG_COLLIDABLE
+        playframes(ROCKET, 0.0, 26.0)
+        playframes(ROCKET, 0.0, 26.0)
+    }
+    event(e, a) {
+        accevcstate(Rocket_Explode, e == EventHit || e == EventHitInvincible || e == EventFling)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+        changestateif(Rocket_Explode, misc, 0)
+    }
+}
+
+state Rocket_Explode { // S9
+    stateflag 0x22
+    statusc 0
+    code(h){
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        statusb = 0
+        playframe()
+        soundpitch(4.895)
+        sounddecay(0xD2)
+        soundsetup(0, self, 5)
+        soundplay([Me2rA], 1.0V)
+        spawn(9, 4, 1, getins(SetExplosionColor), 1)
+        playframe()
+    }
+}
+
+sub SetExplosionColor(){
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(5, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(13, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}

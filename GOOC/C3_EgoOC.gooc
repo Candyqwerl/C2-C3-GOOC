@@ -1,0 +1,814 @@
+#gool EgoOC 37 3
+
+#include "goolstdlib.gooc"
+
+#anim CROCODILE            [CroAV] 24 1
+#anim SWITCH_PRESSED       [SwNiV] 5 1
+#anim SWITCH_RELEASED      [SwFiV] 12 1
+#anim COBRA                [Cb1iV] 82 1
+#anim DART                 [DariV] 1 1
+#anim SPEAR_READY          [Sp1iV] 5 1
+#anim SPEAR_EXTEND_HALF    [Sp2iV] 8 1
+#anim SPEAR_EXTEND_FULL    [Sp3iV] 12 1
+#anim SPEAR_RETRACT        [Sp4iV] 17 1
+#anim FAKE_PILLAR_T1       [PTwAV] 1 1
+#anim FAKE_PILLAR_T2       [PThAV] 1 1
+
+#sprite DART_SMOKE[Cr10T] // C2
+#tex 0x606060 0 3 0 9 768 96 32 32
+#tex 0x606060 0 3 1 9 768 64 32 32
+#tex 0x606060 0 3 2 9 768 32 32 32
+#tex 0x606060 0 3 3 9 800 96 32 32
+#tex 0x606060 0 3 4 9 800 64 32 32
+#tex 0x606060 0 3 5 9 800 32 32 32
+#tex 0x606060 0 3 6 9 832 96 32 32
+#tex 0x606060 0 3 7 9 832 64 32 32
+#tex 0x606060 0 3 8 9 832 32 32 32
+#tex 0x606060 0 3 9 9 864 96 32 32
+#tex 0x606060 0 3 0 9 864 64 32 32
+#tex 0x606060 0 3 10 9 864 32 32 32
+#tex 0x606060 0 3 11 9 896 96 32 32
+#tex 0x606060 0 3 12 9 896 64 32 32
+#tex 0x606060 0 3 13 9 896 32 32 32
+
+#spawn S_CROCODILE         Crocodile_Init
+#spawn S_SWITCH            Switch_Spawn
+#spawn S_COBRA             Cobra_Spawn
+#spawn S_DART              Dart_Spawn
+#spawn S_SPEAR             Spear_Init
+#spawn S_DART_TRIGGER      Dart_Trigger
+#spawn S_DART_SMOKE        DartSmoke
+#spawn S_DART_TOP          Dart_Spawn
+#spawn S_DART_BOT          Dart_Spawn
+#spawn S_PILLAR1           FakePillar_T1
+#spawn S_PILLAR2           FakePillar_T2
+
+var CrocRotY, CrocCycleLen, CrocBaseY, CrocCurrentDir, CrocDirJumpCount,
+    CrocTargetY, CrocFXDistanceTresh, CrocNearFX1, CrocNearFX2, CrocFarFX1,
+    CrocFarFX2, CrocEnableFX, CrocBaseY2, mem14, CrocDefaultColor, mem16, mem17,
+    CrocActiveFX1, CrocActiveFX2, SwitchLinkID, CobraCycleOffs, CobraRotY, CobraVar3,
+    DartTravelDistance, DartTravelTime, DartSpawnX, DartSpawnY, DartSpawnZ, DartVelocity, DartSmokeTimer,
+    SpearReadyDur, SpearHalfExDur, SpearFullExDur, SpearRetractedDur, SpearCyclelen, SpearCycleOffs, PlayerDeathVely
+
+
+state Crocodile_Init { // S0
+    statusc 0
+    code(ry, CycleLen, FXDistanceThresh, NearFX1, NearFX2, FarFX1, FarFX2, EnableFX) {
+        CrocRotY = ry
+        CrocCycleLen = CycleLen * 1s / 1.2s
+        CrocFXDistanceTresh = FXDistanceThresh
+        CrocNearFX1 = NearFX1
+        CrocNearFX2 = NearFX2
+        CrocFarFX1 = FarFX1
+        CrocFarFX2 = FarFX2
+        CrocEnableFX = EnableFX
+        CrocBaseY = y
+        roty = CrocRotY
+        zindex = 0
+        statusb &= ~0x7FFFFFFF
+        vfx = (vfx & 0xFFFFFF00) | 10.0
+        CrocBaseY2 = y
+        mem14 = 1
+        CrocDefaultColor = 0x7F7F7F
+        mem16 = 0
+        mem17 = 0
+        changestate(Crocodile_Jump)
+    }
+}
+
+state Crocodile_Jump { // S1
+    statusc 0
+    code() {
+        sounddecay(0.75)
+        SoundPitchDefault(58)
+        soundplay([Cr1iA], 0.6V)
+        playframes(CROCODILE, 0.0, 23.0)
+        changestate(Crocodile_Wait)
+    }
+    event(e, a) {
+        accevcstate(Egypt_Creature_Fling, e == EventSpinHit || e == EventSlideHit
+            || e == EventHitInvincible || e == EventHit || e == EventFling)
+    }
+    trans {
+        once {
+            if (CrocDirJumpCount >= 2) {
+                if (CrocCurrentDir) {
+                    CrocCurrentDir = 0
+                }
+                else {
+                    CrocCurrentDir = 1
+                }
+                CrocDirJumpCount = 1
+            }
+            else {
+                v0 = rand(2)
+                if (v0 == CrocCurrentDir) {
+                    CrocDirJumpCount += 1
+                }
+                else {
+                    CrocCurrentDir = v0
+                    CrocDirJumpCount = 1
+                }
+            }
+            if (CrocCurrentDir) {
+                roty = CrocRotY + 180deg
+            }
+            else {
+                roty = CrocRotY
+            }
+            CrocTargetY = CrocBaseY + rand(2m)
+            y = CrocTargetY
+            statusb = -0x7FFBFFF0
+        }
+        vecz = abs(z - CAMTRANSZ)
+        if (vecz < 2m) {
+            vecy = ((-80.0s * vecz / 32.0s) + CrocTargetY)
+            y = seek(y, vecy, 0.2m)
+        }
+        else {
+            y = seek(y, CrocTargetY, 0.2m)
+        }
+        vecz = CAMTRANSZ - z
+        if (vecz <= CrocFXDistanceTresh) {
+            CrocActiveFX1 = CrocNearFX1
+            CrocActiveFX2 = CrocNearFX2
+        }
+        else {
+            CrocActiveFX1 = CrocFarFX1
+            CrocActiveFX2 = CrocFarFX2
+        }
+        if (CrocEnableFX) {
+            var CrocMinDistance, CrocCurrDistance
+            save(interrupter) {
+                CrocMinDistance = -1
+                if (GLOBAL_54) {
+                    interrupter = GLOBAL_54
+                    CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+                    misc = CrocMinDistance < 0
+                    if (!misc) {
+                        misc = CrocCurrDistance < CrocMinDistance
+                        if (!misc) {
+                            misc = 0
+                        }
+                    }
+                    if (misc) {
+                        CrocMinDistance = CrocCurrDistance
+                    }
+                }
+                if (GLOBAL_54) {
+                    interrupter = GLOBAL_54
+                    CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+                    misc = CrocMinDistance < 0
+                    if (!misc) {
+                        misc = CrocCurrDistance < CrocMinDistance
+                        if (!misc) {
+                            misc = 0
+                        }
+                    }
+                    if (misc) {
+                        CrocMinDistance = CrocCurrDistance
+                    }
+                }
+                if (CrocMinDistance >= 0) {
+                    if (CrocMinDistance > 15m) {
+                        CrocMinDistance = 15m
+                    }
+                    moda = ((16.0 * CrocMinDistance >> 8) / 0x1770)
+                }
+                else {
+                    moda = 16.0
+                }
+            }
+        }
+        sendevent(EventHit, collider, 100.0)
+    }
+}
+
+state Crocodile_Wait { // S2
+    statusc 0
+    code() {
+        if (CrocEnableFX) {
+            settrans(EgyptFX)
+        }
+        statusb = 0
+        do {
+            playnull()
+        } until(frametime - statetime >= CrocCycleLen)
+        changestate(Crocodile_Jump)
+    }
+}
+
+sub EgyptFX() {
+    var CrocMinDistance, CrocCurrDistance
+    save(interrupter) {
+        CrocMinDistance = -1
+        if (GLOBAL_54) {
+            interrupter = GLOBAL_54
+            CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+            misc = CrocMinDistance < 0
+            if (!misc) {
+                misc = CrocCurrDistance < CrocMinDistance
+                if (!misc) {
+                    misc = 0
+                }
+            }
+            if (misc) {
+                CrocMinDistance = CrocCurrDistance
+            }
+        }
+        if (GLOBAL_120) {
+            interrupter = GLOBAL_120
+            CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+            misc = CrocMinDistance < 0
+            if (!misc) {
+                misc = CrocCurrDistance < CrocMinDistance
+                if (!misc) {
+                    misc = 0
+                }
+            }
+            if (misc) {
+                CrocMinDistance = CrocCurrDistance
+            }
+        }
+        if (CrocMinDistance >= 0) {
+            if (CrocMinDistance > 15m) {
+                CrocMinDistance = 15m
+            }
+            moda = ((16.0 * CrocMinDistance >> 8) / 0x1770)
+        }
+        else {
+            moda = 16.0
+        }
+    }
+}
+
+state Switch_Spawn {  // S3
+    stateflag 0x4000281
+    statusc 0x2
+    code(ID) {
+        SwitchLinkID = ID
+        statusb = FLAG_SOLID_TOP | FLAG_COLLIDABLE | 0x400000
+        changestate(Switch)
+    }
+}
+
+sub CheckPlayerDistance() {
+    misc = abs(player -> x - x) <= 1m
+    if (misc) {
+        misc = abs(player -> z - z) <= 1m
+        if (misc) {
+            misc = player -> y > (y + -0.5m)
+            if (misc) {
+                misc = player -> y < (y + 0.5m)
+            }
+        }
+    }
+    if (!misc) {
+        misc = 0
+    }
+    if (misc) {
+        v0 = 1
+    }
+    else {
+        v0 = 0
+    }
+}
+
+state Switch {  // S4
+    stateflag 0x5000281
+    code() {
+        setanim(SWITCH_RELEASED)
+        sleepframe(11.0)
+    }
+    event(e, a) {
+        accevcstate(Switch_Pressed, e == EventHit)
+    }
+    trans {
+        CheckPlayerDistance()
+        changestateif(Switch_Pressed, v0)
+    }
+}
+
+state Switch_Pressed {  // S5
+    stateflag 0x4000281
+    code() {
+        if (SwitchLinkID) {
+            interrupter = objectget(SwitchLinkID)
+            sendevent(EventTriggered, interrupter)
+        }
+        soundpitch(0x4CC)
+        soundplay([Sw1iA], 0.7V)
+
+        playanim(0, SWITCH_PRESSED)
+        playanim(1, SWITCH_PRESSED)
+        playanim(2, SWITCH_PRESSED)
+        playanim(2, SWITCH_PRESSED)
+        playanim(3, SWITCH_PRESSED)
+
+        settrans(CheckPlayerStepTrans)
+
+        playframe(animframe, 0.2s)
+        sleepanim(0, SWITCH_RELEASED)
+    }
+}
+
+sub CheckPlayerStepTrans(){
+    CheckPlayerDistance()
+    changestateifn(Switch_Released, v0)
+}
+
+state Switch_Released {  // S6
+    stateflag 0x4000281
+    code() {
+        if (SwitchLinkID) {
+            interrupter = objectget(SwitchLinkID)
+            sendeventif(Event14, interrupter, interrupter, 0)
+        }
+        soundpitch(1.20)
+        sounddelay(2)
+        soundplay([Sw1iA], 0.5V)
+        playframes(SWITCH_RELEASED, 0.0, 11.0)
+        changestate(Switch)
+    }
+}
+
+state Cobra_Spawn { // S7
+    statusc 0
+    code(CycleOffs, ry, a0) {
+        CobraCycleOffs = (CycleOffs * 3.3s) >> 8
+        if (CobraCycleOffs >= 3.3s) {
+            CobraCycleOffs = 3.25s
+        }
+        CobraRotY = ry
+        roty = ry
+        CobraVar3 = a0
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        zindex = 24
+        changestate(Cobra)
+    }
+}
+
+state Cobra { // S8
+    statusc 0
+    code() {
+        setanim(COBRA)
+        var CycleLen
+        do {
+            CycleLen = time(3.3s, CobraCycleOffs)
+            if (!CycleLen) {
+                soundpitch(2.9)
+                soundplay([Cb1iA], 0.7V)
+            }
+            animframe = CycleLen << 8
+            playframe(animframe)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Egypt_Creature_Fling, e == EventSpinHit || e == EventHitInvincible || e == EventFling || e == EventHitInvincible || e == EventSlideHit)
+        accevcstate(Egypt_Creature_Squash, e == EventJumpedOn || e == EventSlamHit || e == EventHit)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+        changestateif(Egypt_Creature_Squash, eventaccepted, 0)
+    }
+}
+
+state Dart_Trigger { // S9
+    statusc 0x1000000
+    code(TriggerRadius, DartID, DartTriggerCount) {
+        do {
+            if ((distance(player, DIST_EXACT | DIST_NO_Y) <= TriggerRadius) && !(player -> stateflag & 32) && !player -> invincible) {
+                    while (var DartsRemaining = DartTriggerCount, FireDelay = 0, CurrentDartID = DartID; DartsRemaining) {
+                        interrupter = objectget(CurrentDartID)
+                        sendeventif(EventTriggered, interrupter, interrupter)
+                        CurrentDartID += 1.0
+                        DartsRemaining -= 1
+                        FireDelay = rand(2)
+                        while (FireDelay) {
+                            playnull()
+                            FireDelay += -1
+                        }
+                    }
+                playnull(0.16s)
+            }
+            playnull()
+        } while (1)
+    }
+}
+
+state Dart_Spawn { // S10
+    statusc 0x1000000
+    code(rx, ry, TravelDistance, Velocity) {
+        rotx = rx
+        roty = ry
+        DartTravelDistance = TravelDistance
+        DartVelocity = Velocity / 1s
+        DartTravelTime = DartTravelDistance / DartVelocity
+        vectransf(vtrans, 3, DartVelocity, 0, 0)
+        velx -= x
+        vely -= y
+        velz -= z
+        statusb = 0
+        DartSpawnX = x
+        DartSpawnY = y
+        DartSpawnZ = z
+        changestate(Dart_Sleep)
+    }
+}
+
+state Dart_Sleep { // S11
+    statusc 0x1000000
+    code() {
+        statusb = 0
+        x = DartSpawnX
+        y = DartSpawnY
+        z = DartSpawnZ
+        sleepnull()
+    }
+    event(e, a) {
+        accevcstate(Dart_Shoot, e == EventTriggered)
+    }
+}
+
+state Dart_Shoot { // S12
+    statusc 0x1000000
+    code() {
+        sleepanim(0, DART)
+    }
+    event(e, a) {
+        accevcstate(Dart_Hit, e == EventHitInvincible)
+    }
+    trans {
+        once {
+            statusb = FLAG_COLLIDABLE
+            spawn(EgoOC, S_DART_SMOKE, 1, 0)
+            SoundPitchDefault(52)
+            sounddecay(50)
+            soundplay([Da2iA], 0.5V)
+            DartSmokeTimer = 1
+        }
+        DartSmokeTimer += -1
+        if (DartSmokeTimer <= 0) {
+            spawn(EgoOC, S_DART_SMOKE, 1, CAMROTY)
+            DartSmokeTimer = 1
+        }
+        changestateif(Dart_Hit, frametime - statetime >= DartTravelTime)
+        sendevent(Event24, collider, 100.0)
+        changestateif(Dart_Hit, eventaccepted)
+        x += velx
+        y += vely
+        z += velz
+    }
+}
+
+state Dart_Hit { // S13
+    statusc 0x1000000
+    code() {
+        SoundPitchDefault(46)
+        sounddecay(50)
+        soundplay([Da1iA], 1V)
+        spawn(EgoOC, S_DART_SMOKE, 1, 0)
+        while (child || !(frametime - statetime >= 1s)) {
+            playnull()
+        }
+        x = DartSpawnX
+        y = DartSpawnY
+        z = DartSpawnZ
+        changestate(Dart_Sleep)
+    }
+}
+
+state DartSmoke { // S14
+    statusc 0
+    code() {
+        statusb = 0
+        roty = CAMROTY
+        y += 0.15m
+        zindex = 26
+        SetScale(0.75S)
+        playframes(DART_SMOKE, 2.0, 0.0, 15.0)
+    }
+}
+
+state Spear_Init { // S15
+    stateflag 0x4804081
+    statusc 0x80012
+    code(WaitReadyDur, WaitHalfExDur, WaitFullExDur, WaitRetractedDur, CycleOffs, DeathVely) {
+        SpearReadyDur = (WaitReadyDur * 1s) / 1.2s
+        SpearHalfExDur = (WaitHalfExDur * 1s) / 1.2s
+        SpearFullExDur = (WaitFullExDur * 1s) / 1.2s
+        SpearRetractedDur = (WaitRetractedDur * 1s) / 1.2s
+        PlayerDeathVely = (DeathVely * 1s) / 1.2s
+
+        SpearCyclelen = (5 + (SpearReadyDur + (8 + (SpearHalfExDur + (12 + (SpearFullExDur + (17 + SpearRetractedDur)))))))
+        SpearCycleOffs = ((CycleOffs * SpearCyclelen) >> 8)
+
+        if (SpearCycleOffs < 0) SpearCycleOffs = 0;
+        if (SpearCycleOffs >= SpearCyclelen) SpearCycleOffs = SpearCyclelen;
+
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+
+        if (!zindex) zindex = 24;
+        FlipRand()
+
+        if (!(player -> stateflag & 32) && !player -> invincible) {
+            changestate(Spear_Cycle)
+        }
+        else {
+            changestate(Spear_Sleep)
+        }
+    }
+}
+
+inline sub ForceRetract() {
+    changestateifn(Spear_Force_Retract, !(player -> stateflag & 32) && !player -> invincible)
+}
+
+inline sub SoundSpearExtend() {
+    soundpitch(3.265)
+    soundplay([Sp2iA], 0.5V)
+}
+
+state Spear_Cycle { // S16
+    stateflag 0x4804081
+    statusc 0x80012
+    code() {
+        var SpearCycleLen
+        do {
+            statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+            SpearCycleLen = time(SpearCyclelen, SpearCycleOffs)
+            if (SpearCycleLen < 5) {
+                setanim(SPEAR_READY, SpearCycleLen << 8)
+            }
+            else {
+                SpearCycleLen += -5
+                if (SpearCycleLen < SpearReadyDur) {
+                    ForceRetract()
+                    setanim(SPEAR_READY, 4.0)
+                }
+                else {
+                    SpearCycleLen -= SpearReadyDur
+                    if (SpearCycleLen < 8) {
+                        if (!SpearCycleLen) {
+                            SoundSpearExtend()
+                        }
+                        sendevent(Event24, collider, PlayerDeathVely)
+                        setanim(SPEAR_EXTEND_HALF, SpearCycleLen << 8)
+                    }
+                    else {
+                        SpearCycleLen += -8
+                        if (SpearCycleLen < SpearHalfExDur) {
+                            ForceRetract()
+                            sendevent(Event24, collider, PlayerDeathVely)
+                            setanim(SPEAR_EXTEND_HALF, 7.0)
+                        }
+                        else {
+                            SpearCycleLen -= SpearHalfExDur
+                            if (SpearCycleLen < 12) {
+                                if (!SpearCycleLen) {
+                                    SoundSpearExtend()
+                                }
+                                sendevent(Event24, collider, PlayerDeathVely)
+                                setanim(SPEAR_EXTEND_FULL, SpearCycleLen << 8)
+                            }
+                            else {
+                                SpearCycleLen += -12
+                                if (SpearCycleLen < SpearFullExDur) {
+                                    ForceRetract()
+                                    setanim(SPEAR_EXTEND_FULL, 11.0)
+                                }
+                                else {
+                                    SpearCycleLen -= SpearFullExDur
+                                    if (SpearCycleLen < 17) {
+                                        if (!SpearCycleLen) {
+                                            soundpitch(2.545)
+                                            soundplay([Sp1iA], 0.7V)
+                                        }
+                                        setanim(SPEAR_RETRACT, SpearCycleLen << 8)
+                                    }
+                                    else {
+                                        SpearCycleLen += -17
+                                        changestateifn(Spear_Sleep, !(player -> stateflag & 32) && !(player -> invincible))
+                                        statusb = 0
+                                        animseq = 0
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            playframe(animframe)
+        } while (1)
+    }
+}
+
+state Spear_Force_Retract { // S17
+    stateflag 0x4804081
+    statusc 0x80012
+    code(){
+        statusb = FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        soundpitch(2.540)
+        soundplay([Sp1iA], 0.7V)
+        if (animseq == getanim(SPEAR_READY)) {
+            playframesback(SPEAR_READY, 4.0, 0.0)
+        }
+        else if (animseq == getanim(SPEAR_EXTEND_HALF)) {
+            playframesback(SPEAR_EXTEND_HALF, 7.0, 0.0)
+        }
+        else {
+            playframes(SPEAR_RETRACT, 0.0, 16.0)
+        }
+        changestate(Spear_Sleep)
+    }
+}
+
+state Spear_Sleep { // S18
+    stateflag 0x4804081
+    statusc 0x80012
+    code(){
+        statusb = 0
+        animseq = 0
+        var SpearSleepTime = 0
+        SpearSleepTime = SpearCyclelen - SpearRetractedDur
+        do {
+            if (!(player -> stateflag & 32) && !player -> invincible) {
+                v0 = time(SpearCyclelen, SpearCycleOffs)
+                changestateif(Spear_Cycle, v0 >= SpearSleepTime)
+            }
+            playframe(animframe)
+        } while (1)
+    }
+}
+
+state FakePillar_T1 { // S19
+    stateflag 0x4004081
+    statusc 0x1080012
+    code(ry){
+        roty = ry
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+
+        if (!zindex) zindex = 24;
+        vfx = (vfx & -0xFF01) | 6.0
+
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x400000
+        settrans(EgyptFX)
+        sleepanim(0, FAKE_PILLAR_T1)
+    }
+}
+
+state FakePillar_T2 { // S20
+    stateflag 0x4004081
+    statusc 0x1080012
+    code(ry){
+        roty = ry
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+
+        if (!zindex) zindex = 24;
+        vfx = (vfx & -0xFF01) | 6.0
+
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | 0x400000
+        settrans(EgyptFX)
+        sleepanim(0, FAKE_PILLAR_T2)
+    }
+}
+
+state Egypt_Creature_Fling { // S21
+    stateflag 0x30
+    statusc 0x32
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        misc = (spawn == S_CROCODILE)
+        if (misc) {
+            misc = CrocEnableFX
+        }
+        if (!misc) {
+            misc = 0
+        }
+        if (var CrocMinDistance, CrocCurrDistance; misc) {
+            save(interrupter) {
+                CrocMinDistance = -1
+                if (GLOBAL_54) {
+                    interrupter = GLOBAL_54
+                    CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+                    misc = CrocMinDistance < 0
+                    if (!misc) {
+                        misc = CrocCurrDistance < CrocMinDistance
+                        if (!misc) {
+                            misc = 0
+                        }
+                    }
+                    if (misc) {
+                        CrocMinDistance = CrocCurrDistance
+                    }
+                }
+                if (GLOBAL_120) {
+                    interrupter = GLOBAL_120
+                    CrocCurrDistance = distance(interrupter, DIST_NO_Y)
+                    misc = CrocMinDistance < 0
+                    if (!misc) {
+                        misc = CrocCurrDistance < CrocMinDistance
+                        if (!misc) {
+                            misc = 0
+                        }
+                    }
+                    if (misc) {
+                        CrocMinDistance = CrocCurrDistance
+                    }
+                }
+                if (CrocMinDistance >= 0) {
+                    if (CrocMinDistance > 15m) {
+                        CrocMinDistance = 15m
+                    }
+                    moda = ((16.0 * CrocMinDistance >> 8) / 0x1770)
+                }
+                else {
+                    moda = 16.0
+                }
+            }
+        }
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+state Egypt_Creature_Squash { // S22
+    stateflag 0x23
+    statusc 0x32
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        EnemyDieClearFlags()
+        playframe()
+        spawn(9, 4, 1, getins(SetParticleColor_EgyptObjectSquash), 1)
+        playframe()
+    }
+}
+
+state Kill {
+    statusc 0
+    code(){ }
+}
+
+sub SetParticleColor_EgyptObjectSquash() {
+    vfx = (vfx & -0xFF01) | 4.0
+    if (var r = rand(3); !r) {
+        SetColor1(0x05, 0xBD, 0xBE)
+    }
+    else if (r == 1) {
+        SetColor1(0x0D, 0x4C, 0x4C)
+    }
+    else if (r == 2) {
+        SetColor1(0xE7, 0x85, 0x81)
+    }
+}
+
+/*
+Crocodile Vars:
+CrocRotY = mem1
+CrocCycleLen = mem2
+CrocBaseY = mem3
+CrocCurrentDir = mem4
+CrocDirJumpCount = mem5
+CrocTargetY = mem6
+CrocFXDistanceTresh = mem7
+CrocNearFX1 = mem8
+CrocNearFX2 = mem9
+CrocFarFX1 = mem10
+CrocFarFX2 = mem11
+CrocEnableFX = mem12
+CrocBaseY = mem13
+CrocDefaultColor = mem15
+CrocActiveFX1 = mem18
+CrocActiveFX2 = mem19
+
+Switch Vars:
+SwitchLinkID = mem1
+
+Cobra Vars:
+CobraCycleOffs = mem1
+CobraRotY = mem2
+CobraVar3 = mem3
+
+Dart Vars:
+DartTravelTime = mem1
+DartMaxTravelTime = mem2
+DartSpawnX = mem3
+DartSpawnY = mem4
+DartSpawnZ = mem5
+DartVelocity = mem6
+DartSmokeTimer = mem7
+
+Spear Vars:
+SpearReadyDur = mem1
+SpearHalfExDur = mem2
+SpearFullExDur = mem2
+SpearRetractedDur = mem4
+SpearCyclelen = mem5
+SpearCycleOffs = mem6
+DeathVely = mem7
+/*
