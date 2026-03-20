@@ -1,0 +1,336 @@
+#gool TazOC 43 6
+
+#include "goolstdlib.gooc"
+
+#anim TAZ_PLATFORM_GREEN           [Pl13V] 1 0
+#anim TAZ_PLATFORM_RED             [Pl23V] 1 0
+#anim SKY_1                        [Sk13V] 1 1
+#anim SKY_2                        [Sk23V] 1 1
+#anim ELEVATOR_MAN                 [Em13V] 1 1
+#anim TAZ_CRUMPLE_DOOR_1           [Cd13V] 1 1
+#anim TAZ_CRUMPLE_DOOR_2           [Cd23V] 1 1
+#anim TAZ_CRUMPLE_DOOR_3           [Cd33V] 1 1
+#anim TAZ_CRUMPLE_DOOR_4           [Cd43V] 1 1
+#anim TAZ_CRUMPLE_DOOR_5           [Cd53V] 4 1
+#anim TAZ_CRUMPLE_DOOR_6           [Cd63V] 1 1
+#anim SPOTLIGHT_LEFT               [Sl13V] 1 1
+#anim SPOTLIGHT_HOOK_LEFT          [Sl23V] 1 1
+#anim SPOTLIGHT_RIGHT              [Sr13V] 1 1
+#anim SPOTLIGHT_HOOK_RIGHT         [Sr23V] 1 1
+
+#spawn S_TAZ_TIGER_PLAT            Taz_Platform_Init
+#spawn S_ELEVATOR_MAN              Elevator_Man
+#spawn S_SPOTLIGHT_HOOK_LEFT       Spotlight_Hook
+#spawn S_SPOTLIGHT_HOOK_RIGHT      Spotlight_Hook
+#spawn S_SPOTLIGHT                 Spotlight
+#spawn S_TAZ_CRUMPLE_DOOR          Taz_Crumple_Door
+#spawn S_SKY                       Sky
+
+event Event15 => sub TazStatus
+
+var mem1
+
+expr TAZ_TIGER = 20.0
+
+state Taz_Platform_Init { // 0
+    stateflag 0x801
+    code() {
+        moda = 0
+        statusb = FLAG_COLLIDABLE | FLAG_SOLID_TOP | FLAG_CARRY_COLLIDER | 0x400000
+        vecx = x
+        vecz = z
+        mem1 = 0
+        groundy = y
+        GLOBAL_3 = y
+        stalltime = groundy - 30.0m
+        if (RESPAWNCOUNT == 0) {
+            y = stalltime
+            playanim(0, TAZ_PLATFORM_GREEN, 1.68s)
+            playanim(0, TAZ_PLATFORM_GREEN, 1.68s)
+            playanim(0, TAZ_PLATFORM_GREEN, 1.68s)
+            changestate(Taz_Platform_Rise)
+        }
+        changestate(Taz_Platform)
+    }
+    event(e, a) {
+        if (e == Event67) {
+            y = groundy
+            if (player -> y < y) {
+                player -> y = y
+            }
+            accevcstate(Taz_Platform)
+        }
+    }
+}
+
+state Taz_Platform { // 1
+    stateflag 0x889
+    statusc 0x200002
+    code() {
+        moda = 0
+        sleepanim(0, TAZ_PLATFORM_GREEN)
+    }
+    event(e, a) {
+        if (e == Event14) {
+            accev()
+            mem1 = frametime
+            yzapproach = 360deg
+        }
+        accevcstate(Taz_Platform_Warning, e == Event8 && GLOBAL_126)
+    }
+    trans {
+        // MIPS
+        if (collider && statusa & 0x4000) {
+            GLOBAL_11 = id
+            vecx = seek(vecx, collider -> x, spd(1.0m))
+            vecz = seek(vecz, collider -> z, spd(1.0m))
+            sendeventif(Event64, player, distance(player, DIST_EXACT | DIST_NO_Y) > 1.0m, 100.0)
+        }
+        else {
+            vecx = seek(vecx, x, spd(1.0m))
+            vecz = seek(vecz, z, spd(1.0m))
+        }
+        rotx = distance(vec, self, DIST_EXACT | DIST_NO_Y) / 600
+        rotz = atan2(self, vecx)
+    }
+}
+
+state Taz_Platform_Warning { // 2
+    stateflag 0x881
+    statusc 0x200002
+    event => state Taz_Platform_Rise
+    trans => state Taz_Platform
+    code(){
+        do (var i = 0) {
+            soundpitch(3.625)
+            sounddecay(0.75)
+            soundplay([SPBtA], 0.3V)
+            playanim(0, TAZ_PLATFORM_RED, 0.32s)
+            playanim(0, TAZ_PLATFORM_GREEN, 0.32s)
+            if (i == 1.0) {
+                stateflag &= ~0x80
+            }
+            i += 1.0
+        } while (i < 3.0)
+        changestate(Taz_Platform_Fall)
+    }
+}
+
+state Taz_Platform_Fall { // 3
+    stateflag 0x801
+    statusc 0x200002
+    trans => sub PlatformModa
+    code(){
+        trotz = 0
+        yzapproach = 180deg
+        velx = 0
+        vely = 0
+        velz = 0
+        statusb |= FLAG_PHYSICS_ENGINE | FLAG_GRAVITY
+        soundpitch(3.625)
+        sounddecay(0.75)
+        soundplay([SPFtA], 0.5V)
+        while (y > stalltime) {
+            playanim(0, TAZ_PLATFORM_GREEN)
+        }
+        changestate(Taz_Platform_Rise)
+    }
+}
+
+sub PlatformModa() {
+    if (y < stalltime + 30.0m) {
+        moda = ((30.0m - (y - stalltime)) << 8) / 30.0m * 16.0 >> 8
+    }
+}
+
+state Taz_Platform_Rise { // 4
+    stateflag 0x801
+    statusc 0x200002
+    trans => state Taz_Platform
+    code(){
+        statusb &= ~(FLAG_PHYSICS_ENGINE | FLAG_GRAVITY)
+        do {
+            y = seek(y, groundy, spd(5.0m))
+            PlatformModa()
+            playanim(0, TAZ_PLATFORM_GREEN)
+        } until(y == groundy)
+
+        changestate(Taz_Platform)
+    }
+    event(e, a) {
+        accevcstate(Taz_Platform_Fall, e == Event9)
+        if (e == Event67) {
+            y = groundy
+            if (player -> y < y) {
+                player -> y = y
+            }
+            accevcstate(Taz_Platform)
+        }
+    }
+}
+
+sub TazStatus(a) {
+    if (interrupter) {
+        if (var Tazv0 = a; Tazv0 == 10.0) {
+            if (stateflag & 0x80) {
+                interrupter -> v0 = 1.0
+            }
+            else {
+                interrupter -> v0 = 0
+            }
+        }
+    }
+}
+
+state Spotlight_Hook { // 5
+    code() {
+        vfx = (vfx & 0xFF00FFFF) | 0x30000
+        statusb = FLAG_NO_CAMERA_CLIP
+        spawn(TazOC, S_SPOTLIGHT, 1, 0)
+
+        if (spawn == S_SPOTLIGHT_HOOK_LEFT) {
+            sleepanim(0, SPOTLIGHT_HOOK_LEFT)
+        }
+        else if (spawn == S_SPOTLIGHT_HOOK_RIGHT) {
+            player = objectget(TAZ_TIGER)
+            sleepanim(0, SPOTLIGHT_HOOK_RIGHT)
+        }
+
+    }
+    trans {
+        roty = atan2(player -> trans)
+    }
+}
+
+state Spotlight { // 6
+    __transargs
+    code(v) {
+        vfx = (vfx & 0xFF00FFFF) | 0x30000
+        statusb = FLAG_NO_CAMERA_CLIP
+        player = parent -> player
+        if (parent -> spawn == S_SPOTLIGHT_HOOK_LEFT) {
+            sleepanim(0, SPOTLIGHT_LEFT)
+        }
+        else if (parent -> spawn == S_SPOTLIGHT_HOOK_RIGHT) {
+            sleepanim(0, SPOTLIGHT_RIGHT)
+        }
+    }
+    trans {
+        // MIPS
+        getvert(0, parent, v)
+        roty = parent -> roty
+        rotz = roty
+        rotx = atan2_3d(self, player -> trans)
+    }
+}
+
+state Elevator_Man { // 7
+    code() {
+        v0 = 0
+        zindex = -30
+        do {
+            if (pathprog == v0) {
+                soundpitch(3.262)
+                sounddelay(25)
+                sounddecay(0.703)
+                soundplay([ElvtA], 1.0V)
+                if (!rand(4)) {
+                    pathprog = pathlen - 1
+                    v0 = 0
+                }
+                else {
+                    v0 = pathlen - 1
+                    pathprog = 0
+                }
+            }
+            playanim(0, ELEVATOR_MAN)
+        } while (1)
+    }
+    trans {
+        nofirst {
+            pathprog = seek(pathprog, v0, spd(1.0))
+            calcpath(pathprog)
+        }
+    }
+}
+
+state Taz_Crumple_Door { // 8
+    code() {
+        vfx = (vfx & 0xFF00FFFF) | 0x30000
+        statusb = FLAG_NO_CAMERA_CLIP
+        creator = objectget(TAZ_TIGER)
+        if (RESPAWNCOUNT == 0) {
+            soundpitch(3.262)
+            soundsetup(0, self, 9)
+            sounddecay(0xFF)
+            soundplay([TGrtA], 1.0V)
+            do { playanim(0, TAZ_CRUMPLE_DOOR_1) } until(creator -> v0 >= -29.0)
+            if (SHAKEY == 0) SHAKEY = 4.0;
+            soundpitch(3.625)
+            soundsetup(0, self, 9)
+            sounddecay(0xFF)
+            soundplay([TIBtA], 1.0V)
+            do { playanim(0, TAZ_CRUMPLE_DOOR_2) } until(creator -> v0 >= -17.0)
+            if (SHAKEY == 0) SHAKEY = 4.0;
+            do { playanim(0, TAZ_CRUMPLE_DOOR_3) } until(creator -> v0 >= 0)
+            if (SHAKEY == 0) SHAKEY = 4.0;
+            do { playanim(0, TAZ_CRUMPLE_DOOR_4) } until(creator -> v0 >= 12.0)
+            if (SHAKEY == 0) SHAKEY = 4.0;
+            playanim(0, TAZ_CRUMPLE_DOOR_5)
+            playanim(1, TAZ_CRUMPLE_DOOR_5)
+            playanim(2, TAZ_CRUMPLE_DOOR_5)
+            playanim(2, TAZ_CRUMPLE_DOOR_5)
+        }
+        changestate(Taz_Crumple_Door_Crumpled)
+    }
+    event(e, a) {
+        accevcstate(Taz_Crumple_Door_Crumpled, e == Event67)
+    }
+}
+
+state Taz_Crumple_Door_Crumpled { // 9
+    code() {
+        playanim(3, TAZ_CRUMPLE_DOOR_5, 1.7s)
+        playanim(3, TAZ_CRUMPLE_DOOR_5, 1.7s)
+        playanim(3, TAZ_CRUMPLE_DOOR_5, 1.7s)
+        sleepanim(0, TAZ_CRUMPLE_DOOR_6)
+    }
+    trans {
+        if (player -> y < GLOBAL_3 - 2.0m && !(GLOBAL_119 & 0x400)) {
+            sendevent(Event9, player, 0)
+            if (eventaccepted) {
+                ins72(0, 0x2000)
+            }
+        }
+    }
+}
+
+state Sky { // 10
+    stateflag 0x40001
+    statusc 0
+    code() {
+        vfx = (vfx & 0xFF00FFFF) | 0x30000
+        statusb = FLAG_NO_CAMERA_CLIP | 0x2000000
+        vfx = (vfx & 0xFFFFFF00) | 0x6
+        zindex = -0x800
+        SetRot(0)
+        x = 0
+        y = 0
+        z = 0
+        SetScale(0x2CCC, 0x2CCC, 0x1000)
+        if (RESPAWNCOUNT == 0) {
+            playanim(0, SKY_2, 2.0s)
+            playanim(0, SKY_2, 2.0s)
+            playanim(0, SKY_2, 2.0s)
+            playanim(0, SKY_2, 2.0s)
+            playanim(0, SKY_2, 2.0s)
+        }
+        sleepanim(0, SKY_1)
+    }
+    trans {
+        // MIPS
+        rotz += 0.2deg
+        roty = -CAMROTY
+        rotx = -CAMROTX
+    }
+}

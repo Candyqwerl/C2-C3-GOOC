@@ -1,0 +1,138 @@
+#gool ABanC 33 3
+
+#include "goolstdlib.gooc"
+
+#anim ASS_BANGER              [AB10V] 59 1
+#anim BULLET                  [Bu1lV] 1 1
+     
+#spawn S_ASS_BANGER           Ass_Banger
+#spawn S_BULLET               Bullet
+
+event EventJumpedOn      =>   state Ass_Banger_Squash
+event EventHit           =>   state Ass_Banger_Fling
+event EventSpinHit       =>   state Ass_Banger_Fling
+event EventHitInvincible =>   state Ass_Banger_Squash
+event EventFling         =>   state Ass_Banger_Fling
+event EventSlideHit      =>   state Ass_Banger_Fling
+event EventSlamHit       =>   state Ass_Banger_Squash
+
+state Ass_Banger {
+    statusc 0
+    code(a) {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE | FLAG_ROT_INWARDS
+        calcpath(0)
+        roty = troty
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 24;
+        if (pathlen > 12.0) {
+            do (var BulletPathStart = 12.0) {
+                spawn(ABanC, S_BULLET, 1, BulletPathStart)
+                BulletPathStart += 12.0
+            } while (BulletPathStart < pathlen)
+        }
+        setanim(ASS_BANGER)
+        do {
+            playframes(ASS_BANGER, 0.0, 7.0)
+            spawn(ABanC, S_BULLET, 1, 1.5)
+            playframes(ASS_BANGER, 8.0, 58.0)
+            playframe(animframe, 0.85s)
+        } while (1)
+    }
+    trans {
+        sendevent(EventHit, collider, 100.0)
+    }
+}
+
+sub SetParticleColor_Bullet_Explosion() {
+    if (var r = rand(3); r == 0) {
+        SetColor1(0xC4, 0xC4, 0x00)
+    }
+    else if (r == 1) {
+        SetColor1(0xC4, 0x78, 0x00)
+    }
+    else if (r == 2) {
+        SetColor1(0x78, 0xC4, 0x00)
+    }
+}
+
+state Bullet {
+    statusc 0x12
+    code(PathStart) {
+        CopyCreatorPath()
+        SetRot(0)
+        v0 = false
+        statusb = FLAG_COLLIDABLE
+        pathprog = PathStart
+        do {
+            pathprog = spd(pathprog, 0.01m)
+            calcpath(pathprog)
+            y += 1.10m
+            unless(v0) {
+                SoundPitchDefault(58)
+                sounddecay(0xC0)
+                soundplay([tnt0A], 1.0V)
+                do (var i = 0) {
+                    spawn(9, 21, 1, -1.0, -(3.0m + rand(1.0m)), 2.0m, 0, 720deg, 0, 0.96s, 0.04s)
+                    i += 1.0
+                } while (i < 4.0)
+                v0 = true
+            }
+            playanim(0, BULLET)
+        } until (STATUS_PATH_END)
+        statusb = 0
+        spawn(9, 40, 1, getins(SetParticleColor_Bullet_Explosion), 0)
+        playnull()
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+        if (eventaccepted) {
+            statusb = FLAG_INVISIBLE
+            statusa |= FLAG_PATH_END
+        }
+        roty = GAMEDIR - 90deg
+        unless(STATUS_FIRSTFRAME) {
+            if (time(2) && FRAMETIME < 36) {
+                y += 0.1m
+                spawn(9, 21, 1, -1.0, 3.0m + rand(1.0m), 0, 0, 180deg, 0, 0, 0.76s) // Bullet trail smoke
+            }
+        }
+    }
+}
+
+state Ass_Banger_Fling {
+    stateflag 0x30
+    statusc 0x12
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    }
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Ass_Banger_Squash {
+    stateflag 0x23
+    statusc 0x12
+    code(h) {
+        entitysetspawn(0)
+        sendevent(Event16, player, h)
+        spawn(9, 4, 1, getins(SetParticleColor_Ass_Banger_Squash), 1)
+        EnemyDieClearFlags()
+        playframe()
+    }
+}
+
+sub SetParticleColor_Ass_Banger_Squash() {
+    if (var r = rand(3); r == 0) {
+        SetColor1(0x9A, 0x7A, 0x40)
+    }
+    else if (r == 1) {
+        SetColor1(0xC9, 0x6B, 0x5F)
+    }
+    else if (r == 2) {
+        SetColor1(0x79, 0x80, 0x60)
+    }
+}

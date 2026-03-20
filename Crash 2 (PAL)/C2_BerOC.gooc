@@ -1,0 +1,337 @@
+#gool BerOC 48 5
+
+#include "goolstdlib.gooc"
+
+#anim BEAR_1               [Be1tV] 16 1
+#anim BEAR_2               [Be2tV] 20 1
+#anim BEAR_3               [Be3tV] 40 1
+#anim BEAR_4               [Be4tV] 31 1
+#anim ORCA                 [Or1tV] 50 0
+#anim ASS_LIFTER           [Ll1tV] 50 1
+
+#spawn S_BEAR              Bear
+#spawn S___1               Unused
+#spawn S_ORCA              Orca_Init
+#spawn S_ORCA_BREACH       Orca_Breach
+#spawn S___4               Unused
+#spawn S_ASS_LIFTER        Ass_Lifter
+#spawn S_ASS_LIFTER_TWIN   Ass_Lifter
+#spawn S_BEAR_SLIDE        Bear_Slide
+#spawn S_WARP_BEAR         Warp_Bear_Init
+#spawn S_SECRET_BEAR       Warp_Bear_Init
+#spawn S_BEAR_LIGHT        Bear_Light
+
+#include "C2_FruiC.gooh"
+
+expr OBJ_BEAR = 10.0
+expr player_mem2 = getfield(player, 0x4100)
+
+state Bear {
+    code() {
+        changestateifn(Bear_Sleep, id == 10.0 && (CHECKPOINTCOUNT == 0 || LEVEL == LEVEL_Unbearable) && !(player -> stateflag & 0x20000000))
+        statusb = FLAG_TRACK_PATH_SIGN
+        calcpath(0)
+        Bear_Wait()
+    }
+    trans {
+        nofirst {
+            if (distance(player) < 4.0m || abs(degdist(atan2(player -> trans), troty)) < 90deg || abs(z - player -> z) < 2.0m) {
+                sendevent(EventTriggerBear, player, self)
+                if (eventaccepted) {
+                    settrans(sub_35)
+                }
+            }
+        }
+    }
+}
+
+sub sub_35() {
+    if ((player -> z < z && (LEVEL == LEVEL_BearIt
+        || LEVEL == LEVEL_BearDown
+        || LEVEL == LEVEL_TotallyBear)
+        || player -> z > z
+        && LEVEL == LEVEL_Unbearable)
+        && abs(degdist(player -> troty, atan2(player -> trans))) < 90deg) {
+        player -> v0 = 1.0
+        changestate(Bear_Sleep)
+    }
+}
+
+sub Bear_Wait() {
+    do {
+        unless(rand(2)) {
+            sounddelay(9)
+            SoundPitchDefault(31)
+            sounddecay(0.75)
+            soundplay([BG1tA], 1.0V)
+            playframes(BEAR_3, 0.0, 34.0)
+            playframe(animframe, 0.4s)
+        }
+        playframes(BEAR_1, 0.0, 15.0)
+        v0 = 0.48s + rand(1.48s)
+        WaitFrame(v0)
+        unless(rand(2)) {
+            playframes(BEAR_2, 0.0, 19.0)
+            playframe(animframe, 0.4s)
+            playframesback(BEAR_2, 19.0, 0.0)
+            playframe(animframe, 0.4s)
+        }
+        playframesback(BEAR_1, 15.0, 0.0)
+        v0 = 0.48s + rand(1.48s)
+        WaitFrame(v0)
+    } while (1)
+}
+
+state Warp_Bear_Init {
+    code() {
+        stalltime = 0
+        roty = 180deg
+        zindex = 24
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        if (spawn == S_SECRET_BEAR) {
+            roty = 0
+            if (player -> stateflag & 0x20000000) {
+                statusb = FLAG_INVISIBLE
+            }
+            else {
+                spawn(1, 9, 1, 0, 0)
+            }
+        }
+        changestate(Warp_Bear)
+    }
+}
+
+state Warp_Bear {
+    code => sub Bear_Wait
+    trans {
+        changestateif(Warp_Bear_Squash, collider)
+        if (spawn == S_SECRET_BEAR) {
+            if (player -> z < z) {
+                player -> z = z
+            }
+        }
+    }
+}
+
+state Warp_Bear_Squash {
+    code() {
+        playanim(34, BEAR_3)
+        SoundPitchDefault(0.121)
+        soundplay([BG1tA], 0.2V + rand(0.3V))
+        if (collider) {
+            statetime = frametime
+        }
+        else if (!(frametime - statetime >= 0.1s)) {
+            collider = player
+        }
+        while (collider || animframe != 34.0) {
+            if (collider) {
+                statetime = frametime
+            }
+            else if (!(frametime - statetime >= 0.1s)) {
+                collider = player
+            }
+            if (collider) {
+                playframe(seek(animframe, 39.0, 1.0))
+                if (animframe == 38.0) {
+                    stalltime += 1.0
+                    if (stalltime == 10.0 && !(GLOBAL_150 & 0x20)) {
+                        GLOBAL_150 |= 0x20
+                        do (var i = 0) {
+                            spawn(FruiC, FruiC_S_FRUIT_AUTO, 1, 97.0, 0)
+                            playframe(animframe, 0.4s)
+                            LIFECOUNT = player_mem2
+                            i += 1.0
+                        } while (i < 10.0)
+                        playframe(animframe, 1.7s)
+                        playframe(animframe, 1.7s)
+                        LIFECOUNT = player_mem2
+                    }
+                }
+            }
+            else {
+                playframe(seek(animframe, 39.0, 1.0))
+            }
+        }
+        changestate(Warp_Bear)
+    }
+}
+
+state Bear_Kill {
+    stateflag 0x21
+    code() { }
+}
+
+state Bear_Sleep {
+    stateflag 0x21
+    code() {
+        sleepnull()
+    }
+}
+
+state Bear_Slide {
+    __transargs
+    code(SlideDist) {
+        CopyCreatorPath()
+        pathprog = creator -> pathprog
+        zindex = creator -> zindex
+        speed = 8.0
+        scalex = abs(scalex)
+        statusb = FLAG_ROT_Y2 | FLAG_TRACK_PATH_SIGN
+        trotx = 213.32deg
+        troty = roty + 320deg
+        playanim(0, BEAR_4, 0.3s)
+        playframes(BEAR_4, 0.0, 30.0)
+        sleep()
+    }
+    event(e, a) {
+        accevcstate(Bear_Kill, e == EventRespawn)
+    }
+    trans {
+        nofirst {
+            speed = seek(speed, 0, spd(2.0))
+            pathprog = spd(pathprog, speed)
+            save(troty) {
+                calcpath(pathprog)
+                save(rotx, roty, rotz, vecx, vecy, vecz) {
+                    SetRot(0, troty, 0)
+                    SetVec(x, y, z)
+                    vectransf(vvec, vtrans, 0, -SlideDist, 0)
+                }
+            }
+        }
+    }
+}
+
+state Orca_Init {
+    code(PathprogThresh, BreachDelay, DoubleOrca, yrot, x_off) {
+        unless(LEVEL == LEVEL_BearIt) {
+            PathprogThresh += player -> pathprog
+        }
+        while (player -> pathprog < PathprogThresh) {
+            playnull()
+        }
+        roty = yrot
+        x -= 2.20m
+        if (DoubleOrca == 2.0) {
+            x += x_off
+            spawn(BerOC, S_ORCA_BREACH, 1, 1.0s + (BreachDelay >> 1), BreachDelay)
+            x -= x_off << 1
+        }
+        changestate(Orca_Breach, 0, BreachDelay)
+    }
+    trans {
+        if (abs(z - player -> z) < 10.0m) {
+            vfx = (vfx & 0xFFFF00FF) | 0x600
+        }
+        else {
+            vfx &= 0xFFFF00FF
+        }
+    }
+}
+
+state Orca_Breach {
+    code(StartDelay, BreachDelay) {
+        zindex = 0
+        WaitNull(StartDelay)
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        do {
+            WaitNull(BreachDelay)
+            do {
+                playnull()
+            } until(!(player -> stateflag & 0x20) && !player -> invincible)
+            
+            sounddelay(4)
+            SoundPitchDefault(52)
+            sounddecay(0xFF)
+            soundplay([WhEGA], 0.8V)
+
+            sounddelay(27)
+            SoundPitchDefault(52)
+            sounddecay(0xFF)
+            soundplay([WhSGA], 0.8V)
+
+            playframes(ORCA, 0.0, 49.0)
+        } while (1)
+    }
+    trans {
+        sendevent(Event61, collider, 100.0)
+        if (abs(z - player -> z) < 10.0m) {
+            vfx = (vfx & 0xFFFF00FF) | 0x600
+        }
+        else {
+            vfx &= 0xFFFF00FF
+        }
+    }
+}
+
+state Ass_Lifter {
+    stateflag 0x3
+    statusc 0x0
+    code(yrot, PathprogThresh, LiftDelay, DropDelay) {
+        roty = yrot
+        if (spawn == S_ASS_LIFTER_TWIN) {
+            scalex = -scalex
+        }
+        else {
+            spawn(BerOC, S_ASS_LIFTER_TWIN, 1, yrot, PathprogThresh, LiftDelay, DropDelay)
+        }
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        PathprogThresh += player -> pathprog
+        while (player -> pathprog < PathprogThresh) {
+            playanim(0, ASS_LIFTER)
+        }
+        changestate(STATE_10, 2.0s + ((LiftDelay * 1.0s / 1.2s) + (DropDelay * 1.0s / 1.2s)), 0, DropDelay * 25 / 30, LiftDelay * 25 / 30)
+    }
+}
+
+state STATE_10 {
+    stateflag 0x3
+    statusc 0x0
+    code(ry, PathprogThresh, LiftDelay, DropDelay) {
+        do {
+            WaitFrame(DropDelay)
+            soundpitch(3.262)
+            sounddecay(0xFF)
+            soundplay([MBLyA], 2.25V)
+            playframes(ASS_LIFTER, 0.0, 24.0)
+
+            WaitFrame(LiftDelay)
+
+            soundpitch(3.262)
+            sounddelay(8)
+            sounddecay(0xFF)
+            soundplay([MBDyA], 0.8V)
+            playframes(ASS_LIFTER, 25.0, 49.0)
+        } while (1)
+    }
+    trans {
+        sendevent(Event24, collider, 100.0)
+    }
+}
+
+state Bear_Light {
+    stateflag 0x40003
+    statusc 0x22
+    code() {
+        GLOBAL_55 = 1.0
+        GLOBAL_54 = self
+        GLOBAL_120 = parent
+        do {
+            x = parent -> x
+            z = parent -> z
+            if (parent -> stateflag & 0x20000000) {
+                y = parent -> groundy + 2.0m
+            }
+            else {
+                y = parent -> y + 2.0m
+            }
+            save(rotx, roty, rotz, vecx, vecy, vecz) {
+                SetRot(0, CAMROTY, 0)
+                SetVec(x, y, z)
+                vectransf(vvec, vtrans, -4.0m, 0, 0)
+            }
+            playnull()
+        } while (1)
+    }
+}

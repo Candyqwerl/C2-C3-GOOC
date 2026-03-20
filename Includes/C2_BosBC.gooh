@@ -1,0 +1,5 @@
+expr BosBC = 31
+
+expr BosBC_S_HUD_BOSS_HEALTH = 0
+expr BosBC_S_HUD_BOSS_HEALTH_TICK = 1
+expr BosBC_S_HUD_KOMODO_JOE_MUG = 2

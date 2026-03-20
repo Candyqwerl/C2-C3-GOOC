@@ -1,0 +1,797 @@
+#gool SpaOC 35 5
+
+#include "goolstdlib.gooc"
+
+#anim SPACE_BOX              [BI10V] 1 1
+#anim SPACE_JETPACK          [Je1iV] 1 1
+#anim SPACE_GOGGLES          [Je2iV] 1 1
+#anim SPACE_DOOR             [Do1iV] 26 1
+#anim SPACELOCK              [Do2iV] 50 1
+#anim ALARM_OFF              [Do3iV] 1 1
+#anim ALARM_ON               [Do4iV] 1 1
+
+#sprite LIGHT                [Cr10T]
+#tex 0x808080 0 0 11 8 848 16 16 16
+
+#anim JETPACK_DISCARD        [Rp1iV] 21 1
+#anim JETPACK_EQUIP          [Rp2iV] 29 1
+#anim CABLE                  [Ca1iV] 400 1
+#anim SPACEBALL              [Sb1iV] 100 1
+#anim SPACEGUN_1             [SG10V] 8 1
+#anim SPACEGUN_2             [SG20V] 12 1
+#anim SPACEGUN_3             [SG30V] 4 1
+#anim SPACEGUN_4             [SG40V] 8 1
+#anim SPACEGUN_5             [SG50V] 8 1
+#anim SPACEGUN_6             [SG60V] 12 1
+#anim SPACEGUN_7             [SG70V] 4 1
+#anim SPACEGUN_8             [SG80V] 8 1
+#anim SPACEGUN_9             [SG90V] 8 1
+#anim SPACEGUN_A             [SGa0V] 12 1
+#anim SPACEGUN_B             [SGb0V] 4 1
+#anim SPACEGUN_C             [SGc0V] 8 1
+#anim SPACEGUN_D             [SGd0V] 4 1
+#anim SPACEGUN_E             [SGe0V] 4 1
+#anim SPACEGUN_F             [SGf0V] 4 1
+
+#spawn S_SPACE_BOX           Space_Box
+#spawn S_SPACE_JETPACK       Space_Jetpack
+#spawn S_SPACE_GOGGLES       Space_Goggles
+#spawn S_SPACE_DOOR          Space_Door_Init
+#spawn S_UNUSED              Unused
+#spawn S_SPACE_ZERO_G        Space_Zero_Gravity
+#spawn S_SPACELOCK           Spacelock
+#spawn S_UNUSED              Unused
+#spawn S_SPACE_FLOOR         Space_Floor
+#spawn S_SPACE_PAD           Space_Pad
+#spawn S_SPACE_ALARM         Space_Alarm
+#spawn S_SPACE_CABLE_1       Space_Cable_Spawn
+#spawn S_SPACE_CABLE_2       Space_Cable
+#spawn S_SPACE_GUN           Space_Gun_Init
+#spawn S_SPACEBALL_HOMING    Spaceball_Homing_Init
+#spawn S_SPACE_RING          Space_Ring
+#spawn S_SPACEBALL           Spaceball
+#spawn S_SPACEBALL_PATH      Spaceball_Path
+
+var SpaceballCycleLen, SpaceballCycleOffs, SpaceballPathlen, OrbitRadius, OrbitAngle, CableSpark
+
+state Space_Box { // 0
+    code() {
+        zindex = 24
+        statusb = FLAG_SOLID_FULL
+        if (CHECKPOINTCOUNT) {
+            entitysetstate(1)
+        }
+        if (entitygetstate(2)) {
+            y += 2.0m
+            changestate(Space_Box_Float)
+        }
+        vely = 2.0m
+        sleepanim(0, SPACE_BOX)
+    }
+    event(e, a) {
+        accevcstate(Space_Box_Float, e == Event58)
+
+    }
+}
+
+state Space_Box_Float { // 1
+    code() {
+        sleepanim(0, SPACE_BOX)
+    }
+    trans {
+        once {
+            statusb |= FLAG_PHYSICS_ENGINE
+        }
+        vely = vely * 0xF8 >> 8
+        unless(abs(vely) & -64.0) {
+            settrans(Space_Box_Trans)
+        }
+    }
+}
+
+sub Space_Box_Trans() __trans {
+    once {
+        v0 = 0
+        groundy = y
+        statusb &= ~FLAG_PHYSICS_ENGINE
+        entitysetstate(1)
+    }
+    y = groundy + sin(loopseek(v0, 100.0, 0x320), 0x60E0)
+}
+
+state Space_Jetpack { // 2
+    code() {
+        if (CHECKPOINTCOUNT || entitygetstate(2)) {
+            return
+        }
+        spawn(SpaOC, S_SPACE_GOGGLES, 1)
+        zindex = 24
+
+        do {
+            playanim(0, SPACE_JETPACK)
+        } until(distance(player, DIST_NO_Y) < 5.0m)
+
+        do {
+            sendevent(Event58, player)
+            playanim(0, SPACE_JETPACK)
+        } until(player -> stateflag & 0x4000000)
+        
+        sleepanim(0, SPACE_JETPACK)
+    }
+    event(e, a) {
+        accevcstate(Space_Jetpack_Equip, e == EventTriggered)
+    }
+    trans{
+        once {
+            v0 = 0
+            groundy = y - 0.125m
+        }
+        roty += 5deg
+        y = groundy + sin(loopseek(v0, 100.0, 0x320), 0x60E0)
+        sendeventif(Event9, player, (player -> z < z - 5.0m || player -> y < y - 0.5m) && !(player -> stateflag & 0x4000000), 100.0)
+    }
+}
+
+state Space_Jetpack_Equip { // 3
+    code(){
+        entitysetstate(1)
+        statusb = 0
+        roty = 180deg
+        x = player -> x
+        y = player -> y
+        z = player -> z
+        entitysetspawn(0)
+        sendevent(Event12, child)
+        playframes(JETPACK_EQUIP, 0.0, 28.0)
+    }
+}
+
+state Space_Goggles { // 4
+    code() {
+        zindex = 24
+        sleepanim(0, SPACE_GOGGLES)
+    }
+    event(e, a) {
+        accevcstate(Kill, e == Event12)
+    }
+    trans {
+        once {
+            v0 = 0x1900
+            groundy = y
+        }
+        y = groundy + sin(loopseek(v0, 0x4B00, 0x320), 0x47E0)
+    }
+}
+
+state Space_Floor { // 5
+    statusc 0x22
+    code() {
+        unless(player -> stateflag & 0x4000000) {
+            settrans(Space_Pad_Trans)
+        }
+        y += 2.0m
+        statusb = FLAG_INVISIBLE | FLAG_COLLIDABLE
+        SetScale(32.0, 96.0, 32.0)
+        sleepanim(0, LIGHT)
+    }
+    trans {
+        if (collider) {
+            if (collider -> stateflag & 0x4000000) {
+                sendevent(Event58, collider)
+                changestateif(Kill, eventaccepted)
+            }
+        }
+    }
+}
+
+state Kill { // 6
+    stateflag 0
+    statusc 0
+    code(){ }
+}
+
+state Space_Pad { // 7
+    statusc 0x22
+    trans => sub Space_Pad_Trans
+    code() {
+        zindex = 25
+        playframes(JETPACK_DISCARD, 0.0, 20.0)
+        movetolist(3.0)
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        sleep()
+    }
+}
+
+sub Space_Pad_Trans() {
+    sendeventif(Event9, player, player -> y < y - 2.0m, 100.0)
+    if (player -> z > z + 3.0m) {
+        player -> z = z + 3.0m
+    }
+}
+
+state Space_Door_Init { // 8
+    statusc 0x22
+    code() {
+        zindex = fieldval(ENTITY_FIELD_ZINDEX)
+        if (!zindex) zindex = 24;
+        setanim(SPACE_DOOR)
+        if (player -> z <= z + 8.0m) {
+            animframe = 25.0
+            changestate(Space_Door_Open)
+        }
+        else {
+            animframe = 0
+            changestate(Space_Door_Wait)
+        }
+        statusb = FLAG_INVISIBLE | FLAG_COLLIDABLE
+    }
+}
+
+state Space_Door_Wait { // 9
+    statusc 0x22
+    code() {
+        soundpitch(3.625)
+        sounddecay(0.625)
+        soundplay([SDCTA], 0.75V)
+        playframesback(25.0, 0.0)
+        do {
+            if (GLOBAL_3 != frametime || z >= GLOBAL_11) {
+                GLOBAL_3 = frametime
+                GLOBAL_11 = z
+            }
+            playframe()
+        } while (1)
+    }
+    trans {
+        changestateif(Space_Door_Open, player -> velz < 0 && player -> z <= z + 8.0m)
+    }
+}
+
+state Space_Door_Open { // 10
+    statusc 0x22
+    code() {
+        soundpitch(3.625)
+        sounddecay(0.625)
+        soundplay([SDOTA], 0.75V)
+        if (player -> z < z) {
+            playframes(SPACE_DOOR, 2.0, 0.0, 25.0)
+        }
+        else if (player -> z <= z + 4.0m) {
+            playframes(SPACE_DOOR, 2.0, 0.0, 25.0)
+        }
+        else {
+            playframes(SPACE_DOOR, 2.0, 0.0, 25.0)
+        }
+        sleep()
+    }
+    trans {
+        // MIPS
+        changestateif(Space_Door_Wait, player -> velz > 0 && player -> z > z + 4.1m + 1)
+    }
+}
+
+state Space_Zero_Gravity { // 11
+    stateflag 0x4000001
+    statusc 0x22
+    code(t, vx, vy, vz) {
+        spawn(9, 27, 1, vx, vy, vz, 0, 2.0)
+        v0 = 0
+        ins46(vx, vx)
+        do {
+            getvert(0, 0, time(2) << 8)
+            spawn(9, 19, 1, -1.0, vx * -6, vy * -6, vz * -6)
+            if (frametime - statetime >= 0.16s) {
+                v0 -= 4.5deg
+            }
+            else {
+                v0 += 4.5deg
+            }
+            creator -> velx += vx * v0 >> 8
+            creator -> vely += vy * v0 >> 8
+            creator -> velz += vz * v0 >> 8
+            playnull()
+        } until(frametime - statetime >= t)
+
+        while (child) {
+            playnull()
+        }
+    }
+}
+
+state Spacelock { // 12
+    statusc 0x22
+    code() {
+        spawn(SpaOC, S_SPACE_ALARM, 1)
+        statusb = FLAG_NO_CAMERA_CLIP
+        zindex = 24
+        if (CHECKPOINTCOUNT) {
+            entitysetstate(1)
+        }
+        changestateif(Spacelock_Sleep, entitygetstate(2))
+        sleepanim(0, SPACELOCK)
+    }
+    event(e, a) {
+        accevcstate(Spacelock_Triggered, e == EventTriggered)
+    }
+}
+
+state Spacelock_Triggered { // 13
+    statusc 0x22
+    code() {
+        broadcastevent(Event58, self)
+        entitysetstate(1)
+        statusb = FLAG_NO_CAMERA_CLIP
+        vfx = (vfx & 0xFFFFFF00) | 0x6
+        soundpitch(3.625)
+        sounddecay(0.625)
+        soundplay([SLoTA], 1.28V)
+        vfx = vfx & 0xFFFFFF00
+        playframes(SPACELOCK, 0.0, 49.0)
+        changestate(Spacelock_Sleep)
+
+    }
+}
+
+state Spacelock_Sleep { // 14
+    statusc 0x22
+    code(){
+        sleepanim(49, SPACELOCK)
+    }
+}
+
+state Space_Alarm { // 15
+    statusc 0x22
+    code() {
+        unless(entitygetstate(creator -> id, 2)) {
+            do {
+                playanim(0, ALARM_OFF)
+            } until(player -> stateflag & 0x4000000)
+            
+            do (var i = 0) {
+                vfx = (vfx & 0xFFFFFF00) | 0x6
+                soundpitch(6.893)
+                sounddecay(0.625)
+                soundplay([SpATA], 0.5V)
+                vfx = vfx & 0xFFFFFF00
+                playanim(0, ALARM_ON, 0.4s)
+                playanim(0, ALARM_OFF, 0.4s)
+                i += 1.0
+            } while (i < 9.0)
+        }
+        changestate(Space_Alarm_Sleep)
+    }
+}
+
+state Space_Alarm_Sleep { // 16
+    statusc 0x22
+    code() {
+        sleepanim(0, ALARM_ON)
+    }
+}
+
+sub SpaceObjectTrans() {
+    if (frametime - GLOBAL_3 >= 0.08s || z > GLOBAL_11) {
+        statusb &= ~FLAG_INVISIBLE
+    }
+    else {
+        statusb |= FLAG_INVISIBLE
+    }
+}
+
+state Space_Cable_Spawn { // 17
+    statusc 0x22
+    trans => sub SpaceObjectTrans
+    code() {
+        spawn(SpaOC, S_SPACE_CABLE_2, 1)
+        z += 1.0m
+        playframes(CABLE, 389.0, 399.0)
+        CableSpark = -1
+        changestate(Space_Cable)
+    }
+}
+
+state Space_Cable { // 18
+    statusc 0x22
+    code() {
+        statusb = FLAG_NO_CAMERA_CLIP
+        sleepframes(CABLE, 0.0, 399.0)
+    }
+    trans {
+        nofirst {
+            // Missing pointclip checks
+            unless(statusb & FLAG_INVISIBLE) {
+                if (CableSpark != child && FRAMETIME < 34) {
+                    unless(rand(4)) {
+                        unless(rand(2)) {
+                            spawn(9, 24, 1, 0)
+                            CableSpark = objectspawned
+                        }
+                        else {
+                            spawn(9, 24, 1, 0x800)
+                            CableSpark = objectspawned
+                        }
+                    }
+                }
+            }
+        }
+        SpaceObjectTrans()
+    }
+}
+
+state Space_Gun_Init { // 19
+    statusc 0x22
+    code(CycleOffset) {
+        vfx = (vfx & 0xFF00FFFF) | 0x10000
+        statusb = FLAG_NO_CAMERA_CLIP | FLAG_COLLIDABLE
+        if (var cycleoffs = CycleOffset; cycleoffs == 0) {
+            changestate(Spacegun_Lateral_1)
+        }
+        else if (cycleoffs == 1.0) {
+            changestate(Spacegun_Center)
+        }
+        else {
+            changestateif(Spacegun_Lateral_2, cycleoffs == 2.0)
+        }
+    }
+}
+
+state Spacegun_Lateral_1 { // 20
+    statusc 0x22
+    code() {
+        if (animseq == getanim(SPACEGUN_7)) {
+            playframesback(SPACEGUN_4, 7.0, 0.0)
+            playanim(0, SPACEGUN_1)
+            playanim(1, SPACEGUN_1)
+            playanim(2, SPACEGUN_1)
+            playanim(2, SPACEGUN_1)
+            playanim(3, SPACEGUN_1)
+            playanim(4, SPACEGUN_1)
+            playanim(5, SPACEGUN_1)
+            playanim(6, SPACEGUN_1)
+        }
+        else if (animseq == getanim(SPACEGUN_B)) {
+            playanim(0, SPACEGUN_C)
+            playanim(1, SPACEGUN_C)
+            playanim(2, SPACEGUN_C)
+            playanim(3, SPACEGUN_C)
+            playanim(4, SPACEGUN_C)
+            playanim(4, SPACEGUN_C)
+            playanim(5, SPACEGUN_C)
+            playanim(6, SPACEGUN_C)
+
+            playanim(0, SPACEGUN_1)
+            playanim(1, SPACEGUN_1)
+            playanim(2, SPACEGUN_1)
+            playanim(2, SPACEGUN_1)
+            playanim(3, SPACEGUN_1)
+            playanim(4, SPACEGUN_1)
+            playanim(5, SPACEGUN_1)
+            playanim(6, SPACEGUN_1)
+        }
+
+        soundpitch(3.262)
+        sounddelay(4)
+        sounddecay(0xC8)
+        soundplay([SGuTA], 0.8V)
+        playframes(SPACEGUN_2, 0.0, 11.0)
+
+        do (var i = 0) {
+            playanim(0, SPACEGUN_D)
+            playanim(1, SPACEGUN_D)
+            playanim(2, SPACEGUN_D)
+            playanim(2, SPACEGUN_D)
+            i += 1.0
+        } while (i < 5.0)
+
+        playanim(0, SPACEGUN_3)
+        playanim(1, SPACEGUN_3)
+        playanim(2, SPACEGUN_3)
+        playanim(2, SPACEGUN_3)
+
+        changestate(Spacegun_Center)
+    }
+    trans {
+        sendevent(EventBurn, collider, 100.0)
+        SpaceObjectTrans()
+    }
+}
+
+
+state Spacegun_Center { // 21
+    statusc 0x22
+    trans => state Spacegun_Lateral_1
+    code() {
+        if (animseq == getanim(SPACEGUN_3)) {
+            playanim(0, SPACEGUN_4)
+            playanim(1, SPACEGUN_4)
+            playanim(2, SPACEGUN_4)
+            playanim(3, SPACEGUN_4)
+            playanim(4, SPACEGUN_4)
+            playanim(4, SPACEGUN_4)
+            playanim(5, SPACEGUN_4)
+            playanim(6, SPACEGUN_4)
+
+            playanim(0, SPACEGUN_5)
+            playanim(1, SPACEGUN_5)
+            playanim(2, SPACEGUN_5)
+            playanim(2, SPACEGUN_5)
+            playanim(3, SPACEGUN_5)
+            playanim(4, SPACEGUN_5)
+            playanim(5, SPACEGUN_5)
+            playanim(6, SPACEGUN_5)
+        }
+        else if (animseq == getanim(SPACEGUN_B)) {
+            playframesback(SPACEGUN_8, 7.0, 0.0)
+            playanim(0, SPACEGUN_5)
+            playanim(1, SPACEGUN_5)
+            playanim(2, SPACEGUN_5)
+            playanim(2, SPACEGUN_5)
+            playanim(3, SPACEGUN_5)
+            playanim(4, SPACEGUN_5)
+            playanim(5, SPACEGUN_5)
+            playanim(6, SPACEGUN_5)
+        }
+
+        soundpitch(3.262)
+        sounddelay(4)
+        sounddecay(0xC8)
+        soundplay([SGuTA], 0.8V)
+        playframes(SPACEGUN_6, 0.0, 11.0)
+
+        do (var i = 0) {
+            playanim(0, SPACEGUN_E)
+            playanim(1, SPACEGUN_E)
+            playanim(2, SPACEGUN_E)
+            playanim(2, SPACEGUN_E)
+            i += 1.0
+        } while (i < 5.0)
+
+        playanim(0, SPACEGUN_7)
+        playanim(1, SPACEGUN_7)
+        playanim(2, SPACEGUN_7)
+        playanim(2, SPACEGUN_7)
+
+        changestate(Spacegun_Lateral_2)
+    }
+}
+
+state Spacegun_Lateral_2 { // 22
+    statusc 0x22
+    trans => state Spacegun_Lateral_1
+    code() {
+        if (animseq == getanim(SPACEGUN_7)) {
+            playanim(0, SPACEGUN_8)
+            playanim(1, SPACEGUN_8)
+            playanim(2, SPACEGUN_8)
+            playanim(3, SPACEGUN_8)
+            playanim(4, SPACEGUN_8)
+            playanim(4, SPACEGUN_8)
+            playanim(5, SPACEGUN_8)
+            playanim(6, SPACEGUN_8)
+
+            playanim(0, SPACEGUN_9)
+            playanim(1, SPACEGUN_9)
+            playanim(2, SPACEGUN_9)
+            playanim(2, SPACEGUN_9)
+            playanim(3, SPACEGUN_9)
+            playanim(4, SPACEGUN_9)
+            playanim(5, SPACEGUN_9)
+            playanim(6, SPACEGUN_9)
+        }
+        else if (animseq == getanim(SPACEGUN_3)) {
+            playframesback(SPACEGUN_C, 7.0, 0.0)
+            playanim(0, SPACEGUN_9)
+            playanim(1, SPACEGUN_9)
+            playanim(2, SPACEGUN_9)
+            playanim(2, SPACEGUN_9)
+            playanim(3, SPACEGUN_9)
+            playanim(4, SPACEGUN_9)
+            playanim(5, SPACEGUN_9)
+            playanim(6, SPACEGUN_9)
+        }
+
+        soundpitch(3.262)
+        sounddelay(4)
+        sounddecay(0xC8)
+        soundplay([SGuTA], 0.8V)
+        playframes(SPACEGUN_A, 0.0, 11.0)
+
+        do (var i = 0){
+            playanim(0, SPACEGUN_F)
+            playanim(1, SPACEGUN_F)
+            playanim(2, SPACEGUN_F)
+            playanim(2, SPACEGUN_F)
+            i += 1.0
+        } while (i < 5.0)
+            
+        playanim(0, SPACEGUN_B)
+        playanim(1, SPACEGUN_B)
+        playanim(2, SPACEGUN_B)
+        playanim(2, SPACEGUN_B)
+
+        changestate(Spacegun_Lateral_1)
+    }
+}
+
+state Spaceball_Homing_Init { // 23
+    statusc 0x22
+    code(TriggerRange) {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        field_61 = TriggerRange
+        vecx = x
+        vecy = y
+        vecz = z
+        changestate(Spaceball_Homing)
+    }
+}
+
+state Spaceball_Homing { // 24
+    statusc 0
+    code() {
+        do {
+            soundpitch(3.625)
+            sounddelay(25)
+            sounddecay(0.625)
+            soundplay([SBaTA], 0.1V)
+
+            soundpitch(3.625)
+            sounddelay(75)
+            sounddecay(0.625)
+            soundplay([SBaTA], 0.1V)
+
+            playframes(SPACEBALL, 0.0, 99.0)
+        } while (1)
+    }
+    event(e, a) {
+        accevcstate(Spaceball_Fling, e == EventSpinHit)
+    }
+    trans {
+        SpaceObjectTrans()
+        roty = CAMROTY
+        if (distance(vecx, player, DIST_EXACT) < field_61) {
+            x = seek(x, player -> x, spd(1.0m))
+            y = seek(y, player -> y + 1.0m, spd(1.0m))
+            z = seek(z, player -> z, spd(1.0m))
+        }
+        else {
+            x = seek(x, vecx, spd(0.5m))
+            y = seek(y, vecy, spd(0.5m))
+            z = seek(z, vecz, spd(0.5m))
+        }
+        v0 = animframe / 30.0
+        if (v0 == 1 || v0 == 3) {
+            statusc |= 0x20
+            sendevent(Event24, collider, 100.0)
+        }
+        else {
+            statusc &= ~0x20
+        }
+    }
+}
+
+state Space_Ring { // 25
+    statusc 0x22
+    code(BallCount, MinRadius, MaxRadius, OrbCycleLen, OrbCycleOffs, RadCycleLen, RadCycleOffs, UA1, EnableOrbit) {
+        // MIPS
+        var OrbitCycleLen = OrbCycleLen * 1s / 1.2s
+        var OrbitCycleOffs = OrbCycleOffs * 1s / 1.2s
+        var RadiusCycleLen = RadCycleLen * 1s / 1.2s
+        var RadiusCycleOffs = RadCycleOffs * 1s / 1.2s
+        var OrbAngleInc = 360deg / BallCount
+        var OrbAngle = 0
+
+        do (var i = 0) {
+            spawn(SpaOC, S_SPACEBALL, 1, OrbAngle)
+            OrbAngle += OrbAngleInc
+            i += 1
+        } while (i < BallCount)
+
+        do {
+            changestateif(Spaceball_Shrink, player -> z < z - 0.8m)
+            if (EnableOrbit && OrbitCycleLen) {
+                rotx = (time(OrbitCycleLen, OrbitCycleOffs) << 12) / OrbitCycleLen
+            }
+            else {
+                rotx = 0
+            }
+            if (RadiusCycleLen) {
+                var RadiusPhase = time(RadiusCycleLen << 1, RadiusCycleOffs)
+                OrbitRadius = MinRadius + (abs(RadiusPhase - RadiusCycleLen) * (MaxRadius - MinRadius)) / RadiusCycleLen
+            }
+            else {
+                OrbitRadius = MinRadius
+            }
+            playframe()
+        } while (1)
+    }
+}
+
+state Spaceball_Shrink { // 26
+    statusc 0x22
+    code() {
+        while (scalex > 0) {
+            scalex = seek(scalex, 0, 0x199)
+            scaley = seek(scaley, 0, 0x199)
+            scalez = seek(scalez, 0, 0x199)
+            playframe()
+        }
+        entitysetspawn(0)
+    }
+}
+
+state Spaceball { // 27
+    statusc 0x10
+    code(OrbAngle) {
+        spawn(29, 0, 1, 0, 0x1800, 0)
+        OrbitAngle = OrbAngle
+        statusb = FLAG_HAS_SHADOW | FLAG_COLLIDABLE
+        vecx = parent -> x
+        vecy = parent -> y
+        vecz = parent -> z
+        trotx = 0
+        troty = 0
+        trotz = 90deg
+        sleepframes(SPACEBALL, 0.0, 99.0)
+    }
+    trans {
+        nofirst {
+            unless(statusb & FLAG_INVISIBLE) {
+                trotx = parent -> rotx + OrbitAngle
+                vectransf2(5, 0, 0, parent -> OrbitRadius, 0)
+            }
+        }
+        sendevent(EventExplode, collider, 100.0)
+        changestateif(Spaceball_Explode, eventaccepted)
+        scalex = parent -> scalex
+        scaley = parent -> scaley
+        scalez = parent -> scalez
+        SpaceObjectTrans()
+    }
+}
+
+state Spaceball_Path { // 28
+    statusc 0
+    code(CycleLen, CycleOffs) {
+        statusb = FLAG_SOLID_TOP | FLAG_SOLID_SIDES | FLAG_COLLIDABLE
+        SpaceballCycleLen = CycleLen * 1s / 1.2s
+        SpaceballCycleOffs = CycleOffs * 1s / 1.2s
+        SpaceballPathlen = (pathlen << 1) / (SpaceballCycleLen + 1)
+        sleepframes(SPACEBALL, 0.0, 99.0)
+    }
+    trans {
+        nofirst {
+            unless(statusb & FLAG_INVISIBLE) {
+                var Cyclelen = time(SpaceballCycleLen, SpaceballCycleOffs)
+                calcpath(abs((Cyclelen - (SpaceballCycleLen >> 1)) * SpaceballPathlen))
+                if (Cyclelen >= SpaceballCycleLen >> 1) {
+                    statusa |= 0x4
+                }
+            }
+        }
+        SpaceObjectTrans()
+    }
+}
+
+state Spaceball_Fling { // 29
+    stateflag 0x30
+    statusc 0x12
+    code(h) {
+        EnemyFlingCombo(h)
+        EnemyFlingSetDir()
+        EnemyFlingSetVel(3m)
+        EnemyFlingWaitScale()
+    } 
+    trans {
+        EnemyFlingTrans(2m, EventFling)
+    }
+}
+
+state Spaceball_Explode { // 30
+    stateflag 0x22
+    statusc 0x12
+    code() {
+        spawn(9, 40, 1, 0, 2)
+        playnull()
+        entitysetspawn(0)
+    }
+}

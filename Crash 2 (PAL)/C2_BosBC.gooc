@@ -1,0 +1,120 @@
+#gool BosBC 31 2
+
+#include "goolstdlib.gooc"
+
+#sprite BOSS_HEALTH[KimoT]
+#tex 0x808080 0 0 13 0 0 64 64 64
+#tex 0x808080 0 0 15 0 96 48 32 16
+#tex 0x808080 0 0 0 3 96 32 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+#tex 0x808080 0 0 1 3 96 16 32 16
+
+#sprite KOMODO_JOE_MUG[KimoT]
+#tex 0x808080 0 0 14 0 64 64 64 64
+
+#spawn S_HUD_BOSS_HEALTH            HUD_Boss_Health 
+#spawn S_HUD_BOSS_HEALTH_TICK       HUD_Boss_Health_Tick
+#spawn S_HUD_KOMODO_JOE_MUG         HUD_Komodo_Joe_Mug
+
+state HUD_Boss_Health_Tick {
+    statusc 0
+    code(BossHealth) {
+        statusb = creator -> statusb
+        vfx = creator -> vfx
+        zindex = creator -> zindex - 1
+        SetScale(0x146, 0x103, 0x1000)
+        setanim(BOSS_HEALTH)
+        x = creator -> vecx + creator -> x + 31.0 * (BossHealth >> 8)
+        y = creator -> y + creator -> vecy
+        while (health > BossHealth) {
+            playframe(BossHealth + 1.0)
+        }
+        do (var i = 0) {
+            playnull()
+            setanim(BOSS_HEALTH)
+            playframe(BossHealth + 1.0, 0.1s)
+            i += 1.0
+        } while (i < 6.0)
+    }
+    trans {
+        health = creator -> health
+    }
+}
+
+state HUD_Boss_Health  {
+    statusc 0
+    __transargs
+    code(BossHealth, a) {
+        zindex = 50
+        x = -0xDC00
+        y = 0x52F6
+        z = 0x0000
+        SetRot(0deg)
+        vfx = (vfx & 0xFFFFFF00) | 0x6
+        while (GLOBAL_119 & 0x400 || FADECONTROL) {
+            playnull()
+        }
+        vecx = 0x2700
+        SetScale(0x28D, 0x40E, 0x1000)
+        if (var level = LEVEL; level == LEVEL_BossTazTiger) {
+            vecy = 0xF00
+            vecx = 0x1C00
+        }
+        else if (level == LEVEL_BossCortex) {
+            scalex = 0x2DF
+            vecx = 0x2500
+            vecy += 0xE38
+        }
+        else if (level == LEVEL_BossRipperRoo) {
+            x += 0x500
+            vecy = 0x1555
+            vecx = 0x2800
+        }
+        else if (level == LEVEL_BossNGin) {
+            y = -0x638E
+            vecy = -0x38E
+            vecx = 0x2500
+        }
+        else if (level == LEVEL_BossKimodo) {
+            y = -0x52F6
+            vecy = -0x12F6
+            vecx = 0x5A00
+            spawn(BosBC, S_HUD_KOMODO_JOE_MUG, 1)
+        }
+
+        do (var i = 0) {
+            spawn2(BosBC, S_HUD_BOSS_HEALTH_TICK, 1, i)
+            i += 1.0
+        } while (i < BossHealth)
+
+        while (health) playanim(0, BOSS_HEALTH);
+    }
+    trans {
+        health = creator -> health
+        if (var v1 = a; v1 == 1) {
+            health = BossHealth - (health << 8)
+        }
+        else if (v1 == 2) {
+            health = BossHealth - health
+        }
+        else if (v1 == 3) {
+            health <<= 8
+        }
+    }
+}
+
+state HUD_Komodo_Joe_Mug {
+    statusc 0
+    code() {
+        x += 0x3F00
+        statusb = creator -> statusb
+        vfx = creator -> vfx
+        zindex = creator -> zindex
+        sleepanim(0, KOMODO_JOE_MUG)
+    }
+}

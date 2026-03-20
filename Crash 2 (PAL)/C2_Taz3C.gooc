@@ -1,0 +1,497 @@
+#gool Taz3C 44 3
+
+#include "goolstdlib.gooc"
+
+#anim TAZ_INTRO_1         [Tz23V] 71 1
+#anim TAZ_INTRO_2         [Tz33V] 83 1
+#anim TAZ_INTRO_3         [Tz43V] 42 1
+#anim TAZ_JUMP_1          [Tj13V] 33 1
+#anim TAZ_JUMP_2          [Tj53V] 4  1
+#anim TAZ_FALL_1          [Tf63V] 20 1
+#anim TAZ_FALL_2          [Tf73V] 68 1
+#anim TAZ_FALL_3          [Tf83V] 15 1
+#anim TAZ_FALL_4          [Tfd3V] 4  0
+#anim TAZ_RECOVER_1       [Tf93V] 7  1
+#anim TAZ_RECOVER_2       [Tfc3V] 1  1
+#anim TAZ_ROAR_1          [Tfa3V] 78 1
+#anim TAZ_ROAR_2          [Tfb3V] 11 1
+#anim TAZ_DEATH           [Tfe3V] 84 1
+#anim TAZ_PLATFORM        [Pl13V] 1  1
+#anim TAZ_PLATFORM_TIP    [Pl33V] 84 1
+
+#spawn S_TAZ_TIGER        Taz_Intro
+#spawn S_PLATFORM         Taz_Death_Platform
+
+#include "C2_BosBC.gooh"
+
+event EventHit => sub Taz_Fall
+
+var TazVar1, TazVar2, TazVar3, TazTargetPlatX, TazTargetPlatY, TazTargetPlatZ, TazCurrentPlat, TazFightPhase, TazNextPhaseHealth, TazDamageCooldown,
+TazJumpCount, TazMaxJumpCount, PlatTriggerCount, MaxPlatTriggerCount, mem15, TazFallFlapTime, TazFallBaseY
+
+sub Taz_Jump(p__id) {
+    calcpath(p__id << 8, vvec)
+    TazTargetPlatX = vecx
+    TazTargetPlatY = vecy
+    TazTargetPlatZ = vecz
+    TazCurrentPlat = p__id
+    TazJumpCount += 1.0
+    unless(TazJumpCount % TazMaxJumpCount) {
+        var PlayerCurrPlatID = (GLOBAL_11 - 100.0) >> 8
+        var UsedPlatforms, PlatformID
+        var PlayerCurrPlatX = PlayerCurrPlatID / 3
+        var PlayerCurrPlatZ = PlayerCurrPlatID % 3
+        do (var i = 0) {
+            do { PlatformID = rand(9) } while (1 << PlatformID & UsedPlatforms || abs(PlayerCurrPlatX - PlatformID / 3) > 1 || abs(PlayerCurrPlatZ - PlatformID % 3) > 1)
+            interrupter = objectget(100.0 + (PlatformID << 8))
+            sendevent(EventTriggered, interrupter)
+            UsedPlatforms |= 1 << PlatformID
+            i += 1.0
+        } while (i < PlatTriggerCount)
+    }
+    playframes(TAZ_JUMP_1, 1.0, 7.0)
+    troty = atan2(self, TazTargetPlatX)
+    soundpitch((9.6 + rand(3.2)) * 0.205 >> 8)
+    sounddecay(0xFF)
+    soundplay([jmp0A], 0.2V + rand(0.1V))
+    {
+        var TazStartX = x
+        var TazStartY = y
+        var TazStartZ = z
+        var TazTargetX = TazTargetPlatX
+        var TazTargetY = TazTargetPlatY
+        var TazTargetZ = TazTargetPlatZ
+        troty = atan2(self, TazTargetX)
+        do (var i = 0) {
+            x = TazStartX + (TazTargetX - TazStartX) * (i >> 8) / 18
+            z = TazStartZ + (TazTargetZ - TazStartZ) * (i >> 8) / 18
+            if (animframe == 16.0) {
+                creator = objectget(100.0 + (TazCurrentPlat << 8))
+                sendevent(Event15, creator, 10.0)
+                if (!v0) {
+                    Taz_Fall(0)
+                    playanim(0, TAZ_JUMP_1)
+                    return
+                }
+            }
+            playframe((i - 1.0) * 18 / 18 + 8.0)
+            i += 1.0
+        } while (i <= 18.0)
+    }
+    SoundPitchDefault(0.43)
+    sounddecay(0xFF)
+    soundplay([TLatA], 0.25V)
+    playframes(TAZ_JUMP_1, 26.0, 32.0)
+    playanim(0, TAZ_JUMP_1)
+}
+
+sub UpdateHealth() {
+    var Phase = TazFightPhase
+    TazNextPhaseHealth = TazFightPhase + 1
+}
+
+sub GetNextPlatformID(TazPlat, PlayerPlat) {
+    var TazCurrPlatX = TazPlat / 3
+    var TazCurrPlatZ = TazPlat % 3
+    var PlayerCurrPlatX = PlayerPlat / 3
+    var PlayerCurrPlatZ = PlayerPlat % 3
+    TazCurrPlatX = seek(TazCurrPlatX, PlayerCurrPlatX, 1)
+    TazCurrPlatZ = seek(TazCurrPlatZ, PlayerCurrPlatZ, 1)
+    misc = TazCurrPlatZ + TazCurrPlatX * 3
+}
+
+sub SUB_142(a0) {
+    if (var S3 = a0; S3 == 0) misc = 8;
+    else if (S3 == 1) misc = 7;
+    else if (S3 == 2) misc = 6;
+    else if (S3 == 3) misc = 5;
+    else if (S3 == 4) misc = 2;
+    else if (S3 == 5) misc = 0;
+    else if (S3 == 6) misc = 2;
+    else if (S3 == 7) misc = 1;
+    else if (S3 == 8) misc = 0;
+}
+
+state Taz_Intro {
+    code() {
+        GLOBAL_126 = self
+        GLOBAL_11 = 0
+        SetColor1(0, 0, 0)
+        spawn(29, 0, 1, 0, 0x2000, 10) // ShadC 0
+        zindex = 24
+        trotx = 180deg
+        statusb = FLAG_SOLID_SIDES | FLAG_SOLID_GROUND | FLAG_COLLIDABLE | FLAG_ROT_Y
+        health = 0
+        spawn(BosBC, BosBC_S_HUD_BOSS_HEALTH, 1, 3.0, 1)
+        TazFightPhase = 0
+        TazDamageCooldown = 0
+        TazJumpCount = 0
+        TazMaxJumpCount = 8.0
+        MaxPlatTriggerCount = 8
+        PlatTriggerCount = 1.0
+        if (RESPAWNCOUNT == 0) {
+            calcpath(9.0)
+            playnull()
+            v0 = -50.0
+
+            do (var i = 0) {
+                playnull()
+                i += 1.0
+            } while (i < 62.0)
+
+            soundpitch(3.262)
+            soundsetup(0, self, 9)
+            sounddecay(0xFF)
+            soundplay([TGStA], 1.0V)
+
+            soundpitch(3.262)
+            sounddelay(0x53)
+            soundsetup(0, self, 9)
+            sounddecay(0xFF)
+            soundplay([THutA], 1.0V)
+
+            soundpitch(3.262)
+            sounddelay(0x8E)
+            soundsetup(0, self, 9)
+            sounddecay(0xFF)
+            soundplay([TGrtA], 1.0V)
+
+            playframes(TAZ_INTRO_1, 0.0, 70.0)
+            playframes(TAZ_INTRO_2, 0.0, 82.0)
+            playframes(TAZ_INTRO_3, 0.0, 41.0)
+
+            playanim(0, TAZ_JUMP_2)
+            playanim(1, TAZ_JUMP_2)
+            playanim(2, TAZ_JUMP_2)
+            playanim(2, TAZ_JUMP_2)
+        }
+        else {
+            ins72(0, 0x8000)
+        }
+        changestate(Taz_Init)
+    }
+    event(e, a) {
+        accevcstate(Taz_Init, e == Event67)
+    }
+    trans {
+        once {
+            v0 = -1000.0
+        }
+        v0 += 1.0
+    }
+}
+
+state Taz_Init {
+    code() {
+        TazCurrentPlat = 9
+        groundy = y
+        calcpath(TazCurrentPlat << 8, vvec)
+        x = vecx
+        z = vecz
+        changestate(Taz_Chase)
+    }
+}
+
+state Taz_Chase {
+    statusc 0x10
+    trans => sub TazTransCommon
+    code() {
+        Taz_Jump(1)
+        TazMaxJumpCount = 6.0
+        MaxPlatTriggerCount = 8
+        PlatTriggerCount = 3.0
+        while (health < TazNextPhaseHealth) { // These should be inlined but compiler doesnt like it >:(
+            if (GLOBAL_11) {
+                GetNextPlatformID(TazCurrentPlat, GLOBAL_11 - 100.0 >> 8)
+            }
+            else {
+                misc = 4
+            }
+            if (TazCurrentPlat == misc) {
+                sendeventif(EventHit, player, player -> statusa & FLAG_GROUNDLAND, 100.0)
+                playframe(animframe, 0.85s)
+            }
+            else {
+                Taz_Jump(misc)
+            }
+            if (health >= TazNextPhaseHealth) {
+                break
+            } 
+        }
+        TazFightPhase += 1
+        UpdateHealth()
+        TazMaxJumpCount = 6.0
+        MaxPlatTriggerCount = 8
+        PlatTriggerCount = 2.0
+        while (health < TazNextPhaseHealth) {
+            if (GLOBAL_11) {
+                GetNextPlatformID(TazCurrentPlat, GLOBAL_11 - 100.0 >> 8)
+            }
+            else {
+                misc = 4
+            }
+            if (TazCurrentPlat == misc) {
+                sendeventif(EventHit, player, player -> statusa & FLAG_GROUNDLAND, 100.0)
+                playframe(animframe, 0.85s)
+            }
+            else {
+                Taz_Jump(misc)
+            }
+            if (health >= TazNextPhaseHealth) {
+                break
+            } 
+        }
+        TazFightPhase += 1
+        UpdateHealth()
+        TazMaxJumpCount = 5.0
+        MaxPlatTriggerCount = 8
+        PlatTriggerCount = 1.0
+        while (health < TazNextPhaseHealth) {
+            if (GLOBAL_11) {
+                GetNextPlatformID(TazCurrentPlat, GLOBAL_11 - 100.0 >> 8)
+            }
+            else {
+                misc = 4
+            }
+            if (TazCurrentPlat == misc) {
+                sendeventif(EventHit, player, player -> statusa & FLAG_GROUNDLAND, 100.0)
+                playframe(animframe, 0.85s)
+            }
+            else {
+                Taz_Jump(misc)
+            }
+            if (health >= TazNextPhaseHealth) {
+                break
+            } 
+        }
+        Taz_Jump(9)
+        troty = 0
+        statusb &= ~FLAG_COLLIDABLE
+        changestate(Taz_Death)
+    }
+    event(e, a) {
+        rejevret(e == EventHit && (!((frametime - TazDamageCooldown) >= 1.0s) || health >= TazNextPhaseHealth))
+    }
+}
+
+sub TazTransCommon() {
+    sendevent(EventHit, collider, 100.0)
+    UpdateHealth()
+}
+
+sub TazRidePlatform() {
+    x = creator -> x
+    y = creator -> y
+    z = creator -> z
+    moda = creator -> moda
+}
+
+sub Taz_Fall(a) {
+    {
+        var S3, PlatformID
+        var PlatformTriggers, PlatformDropCount
+        var Attempts
+        do {
+            do {
+                if (PlatformDropCount || Attempts > 50.0) {
+                    PlatformID = rand(9)
+                }
+                else {
+                    PlatformID = rand(3)
+                }
+                Attempts += 1.0
+                creator = objectget(100.0 + (PlatformID << 8))
+            } while (PlatformID == TazCurrentPlat || !(creator -> stateflag & 0x8) || 1 << PlatformID & PlatformTriggers)
+            PlatformDropCount += 1
+            PlatformTriggers |= 1 << PlatformID
+        } while (PlatformDropCount < 3 - health)
+
+        do (var i = 0) {
+            unless(1 << (i >> 8) & PlatformTriggers) {
+                interrupter = objectget(100.0 + (i >> 8 << 8))
+                sendevent(EventTriggered, interrupter)
+            }
+            i += 1.0
+        } while (i < 9.0)
+        interrupter = objectget(100.0 + (TazCurrentPlat << 8))
+        sendevent(Event14, interrupter, 0)
+    }
+    health += 1
+    creator = interrupter
+    sendevent(Event9, creator, 0)
+    statusb |= FLAG_ROT_Y
+    SoundPitchDefault(52)
+    sounddecay(0xFF)
+    soundplay([TFYtA], 1.0V)
+    trotx = abs(degdist(roty, GAMEDIR)) * 3
+    if (var TazFallType = rand(2); TazFallType == 0) {
+        playanim(0, TAZ_FALL_1)
+        {
+            var TazStartX = x
+            var TazStartY = y
+            var TazStartZ = z
+            var TazTargetX = TazTargetPlatX
+            var TazTargetY = TazTargetPlatY
+            var TazTargetZ = TazTargetPlatZ
+            setanim(TAZ_FALL_1)
+            do (var i = 1.0) {
+                x = TazStartX + (TazTargetX - TazStartX) * (i >> 8) / 18
+                z = TazStartZ + (TazTargetZ - TazStartZ) * (i >> 8) / 18
+                if (animframe == 9.0) {
+                    misc = ((roty + (180deg + -CAMROTY)) + 22.5deg) & ~0x1FF & 0xFFF
+                    if (misc > 90deg && misc <= 180deg) {
+                        misc = 180deg - misc
+                    }
+                    else if (misc > 180deg && misc < 270deg) {
+                        misc = 540deg - misc
+                    }
+                    if (misc <= 180deg) {
+                        misc >>= 1
+                    }
+                    else {
+                        misc = 360deg - ((360deg - misc) >> 1)
+                    }
+                    troty = misc
+                }
+                playframe((i - 1.0) * 18 / 18 + 1.0)
+                i += 1.0
+            } while (i <= 18.0)
+        }
+        playframes(TAZ_FALL_2, 0.0, 67.0)
+    }
+    else if (TazFallType == 1) {
+        playanim(0, TAZ_FALL_3)
+        {
+            var TazStartX = x
+            var TazStartY = y
+            var TazStartZ = z
+            var TazTargetX = TazTargetPlatX
+            var TazTargetY = TazTargetPlatY
+            var TazTargetZ = TazTargetPlatZ
+            setanim(TAZ_FALL_3)
+            do (var i = 1.0) {
+                x = TazStartX + (TazTargetX - TazStartX) * (i >> 8) / 14
+                z = TazStartZ + (TazTargetZ - TazStartZ) * (i >> 8) / 14
+                if (animframe == 9.0) {
+                    misc = ((roty + (180deg + -CAMROTY)) + 22.5deg) & ~0x1FF & 0xFFF
+                    if (misc > 90deg && misc <= 180deg) {
+                        misc = 180deg - misc
+                    }
+                    else if (misc > 180deg && misc < 270deg) {
+                        misc = 540deg - misc
+                    }
+                    if (misc <= 180deg) {
+                        misc >>= 1
+                    }
+                    else {
+                        misc = 360deg - ((360deg - misc) >> 1)
+                    }
+                    troty = misc
+                }
+                playframe((i - 1.0) * 14 / 14 + 1.0)
+                i += 1.0
+            } while (i <= 14.0)
+        }
+        save(statusb, y, rotx) {
+            velx = 0
+            vely = -0xA45C
+            velz = 0
+            rotz = rand(360deg)
+            TazFallFlapTime = 0
+            TazFallBaseY = y
+            statusb &= ~(FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | FLAG_SOLID_GROUND | FLAG_ROT_Y | 0x2000)
+            do (var i = 0) {
+                if (y < creator -> y) {
+                    break
+                }
+                vely = spd(vely, -10.0m)
+                TazFallBaseY = spd(TazFallBaseY, vely)
+                y = TazFallBaseY - sin(loopseek(TazFallFlapTime, 2.0m, 0.2m), 1.80m)
+                roty += 2.0deg
+                rotx += 1.0deg
+                if (animseq != getanim(TAZ_FALL_4)) {
+                    setanim(TAZ_FALL_4, -1.0)
+                }
+                playframe((animframe + 1.0) & 0x3FF)
+                i += 1.0
+            } while (i < 72.0)
+        }
+    }
+    TazDamageCooldown = frametime
+    changestateif(Taz_Death, health >= 3)
+    troty = atan2(player -> trans)
+    roty = troty
+    save(statusb) {
+        velx = 0
+        velz = 0
+        statusb &= ~(FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | FLAG_SOLID_GROUND)
+        do {
+            TazRidePlatform()
+            if (y < groundy - 3.75m) {
+                playanim(0, TAZ_RECOVER_2)
+            }
+            else {
+                if (animseq != getanim(TAZ_RECOVER_1)) {
+                    setanim(TAZ_RECOVER_1, -1.0)
+                }
+                playframe((animframe + 1.0) % 7.0)
+            }
+        } until(creator -> stateflag & 0x80)
+        
+        soundpitch(3.262)
+        sounddelay(26)
+        sounddecay(0xFF)
+        soundplay([TGrtA], 1.0V)
+
+        playframes(TAZ_ROAR_1, 0.0, 77.0)
+        playframes(TAZ_ROAR_2, 0.0, 10.0)
+    }
+    statusb |= FLAG_ROT_Y
+    trotx = 180deg
+    settrans(TazTransCommon)
+}
+
+
+state Taz_Death {
+    stateflag 0x21
+    code() {
+        entitysetspawn(0)
+        GLOBAL_126 = 0
+        creator -> statusb |= FLAG_INVISIBLE
+        spawn(Taz3C, S_PLATFORM, 1)
+        velx = 0
+        velz = 0
+        statusb &= ~(FLAG_PHYSICS_ENGINE | FLAG_GRAVITY | FLAG_SOLID_GROUND)
+        do {
+            TazRidePlatform()
+            playanim(0, TAZ_DEATH)
+        } until(creator -> stateflag & 0x80)
+        sendevent(EventWarp, player, 0)
+        playframes(TAZ_DEATH, 0.0, 62.0)
+        velx = 0
+        vely = -0xA45C
+        velz = 0
+        statusb = FLAG_PHYSICS_ENGINE | FLAG_GRAVITY
+        playframes(TAZ_DEATH, 63.0, 83.0)
+        playframe(animframe, 1.7s)
+    }
+}
+
+state Taz_Death_Platform {
+    code() {
+        setanim(TAZ_PLATFORM_TIP)
+        sleep()
+    }
+    trans {
+        rotx = creator -> rotx
+        roty = creator -> roty
+        rotz = creator -> rotz
+        x = creator -> x
+        y = creator -> y
+        z = creator -> z
+        scalex = creator -> scalex
+        scaley = creator -> scaley
+        scalez = creator -> scalez
+        animframe = creator -> animframe
+    }
+}
