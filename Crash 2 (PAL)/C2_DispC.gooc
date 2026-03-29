@@ -724,94 +724,94 @@ state Bonus_Text { // 13
     }
 }
 
-sub SetLevelName(ID) {
+sub SetLevelName(level) {
     misc = 0
-    if (ID == LEVEL_Intro)         misc = 0;
-    if (ID == LEVEL_WarpRoom)      misc = 0;
+    if (level == LEVEL_Intro)         misc = 0;
+    if (level == LEVEL_WarpRoom)      misc = 0;
  
-    if (ID == LEVEL_TurtleWoods)   misc = 1;
-    if (ID == LEVEL_SnowGo)        misc = 2;
-    if (ID == LEVEL_HangEight)     misc = 3;
-    if (ID == LEVEL_ThePits)       misc = 4;
-    if (ID == LEVEL_CrashDash)     misc = 5;
+    if (level == LEVEL_TurtleWoods)   misc = 1;
+    if (level == LEVEL_SnowGo)        misc = 2;
+    if (level == LEVEL_HangEight)     misc = 3;
+    if (level == LEVEL_ThePits)       misc = 4;
+    if (level == LEVEL_CrashDash)     misc = 5;
  
-    if (ID == LEVEL_SnowBiz)       misc = 6;
-    if (ID == LEVEL_AirCrash)      misc = 7;
-    if (ID == LEVEL_BearIt)        misc = 8;
-    if (ID == LEVEL_CrashCrush)    misc = 9;
-    if (ID == LEVEL_TheEelDeal)    misc = 10;
+    if (level == LEVEL_SnowBiz)       misc = 6;
+    if (level == LEVEL_AirCrash)      misc = 7;
+    if (level == LEVEL_BearIt)        misc = 8;
+    if (level == LEVEL_CrashCrush)    misc = 9;
+    if (level == LEVEL_TheEelDeal)    misc = 10;
  
-    if (ID == LEVEL_PlantFood)     misc = 11;
-    if (ID == LEVEL_SewerOrLater)  misc = 12;
-    if (ID == LEVEL_BearDown)      misc = 13;
-    if (ID == LEVEL_RoadToRuin)    misc = 14;
-    if (ID == LEVEL_Unbearable)    misc = 15;
+    if (level == LEVEL_PlantFood)     misc = 11;
+    if (level == LEVEL_SewerOrLater)  misc = 12;
+    if (level == LEVEL_BearDown)      misc = 13;
+    if (level == LEVEL_RoadToRuin)    misc = 14;
+    if (level == LEVEL_Unbearable)    misc = 15;
 
-    if (ID == LEVEL_HanginOut)     misc = 16;
-    if (ID == LEVEL_DigginIt)      misc = 17;
-    if (ID == LEVEL_ColdHardCrash) misc = 18;
-    if (ID == LEVEL_Ruination)     misc = 19;
-    if (ID == LEVEL_BeeHaving)     misc = 20;
+    if (level == LEVEL_HanginOut)     misc = 16;
+    if (level == LEVEL_DigginIt)      misc = 17;
+    if (level == LEVEL_ColdHardCrash) misc = 18;
+    if (level == LEVEL_Ruination)     misc = 19;
+    if (level == LEVEL_BeeHaving)     misc = 20;
 
-    if (ID == LEVEL_PistonItAway)  misc = 21;
-    if (ID == LEVEL_RockIt)        misc = 22;
-    if (ID == LEVEL_NightFight)    misc = 23;
-    if (ID == LEVEL_PackAttack)    misc = 24;
-    if (ID == LEVEL_SpacedOut)     misc = 25;
+    if (level == LEVEL_PistonItAway)  misc = 21;
+    if (level == LEVEL_RockIt)        misc = 22;
+    if (level == LEVEL_NightFight)    misc = 23;
+    if (level == LEVEL_PackAttack)    misc = 24;
+    if (level == LEVEL_SpacedOut)     misc = 25;
 
-    if (ID == LEVEL_TotallyBear)   misc = 26;
-    if (ID == LEVEL_TotallyFly)    misc = 27;
+    if (level == LEVEL_TotallyBear)   misc = 26;
+    if (level == LEVEL_TotallyFly)    misc = 27;
 
-    if (ID == LEVEL_BossRipperRoo) misc = -1;
-    if (ID == LEVEL_BossKimodo)    misc = -2;
-    if (ID == LEVEL_BossTazTiger)  misc = -3;
-    if (ID == LEVEL_BossNGin)      misc = -4;
-    if (ID == LEVEL_BossCortex)    misc = -5;
+    if (level == LEVEL_BossRipperRoo) misc = -1;
+    if (level == LEVEL_BossKimodo)    misc = -2;
+    if (level == LEVEL_BossTazTiger)  misc = -3;
+    if (level == LEVEL_BossNGin)      misc = -4;
+    if (level == LEVEL_BossCortex)    misc = -5;
 }
 
-sub SetLevelID(ID) {
+sub SetLevelID(level) {
     misc = 6.0
-    if (ID == LEVEL_Intro)         misc = 7.0;
-    if (ID == LEVEL_WarpRoom)      misc = 8.0;
+    if (level == LEVEL_Intro)         misc = 7.0;
+    if (level == LEVEL_WarpRoom)      misc = 8.0;
 
-    if (ID == LEVEL_TurtleWoods)   misc = 9.0;
-    if (ID == LEVEL_SnowGo)        misc = 10.0;
-    if (ID == LEVEL_HangEight)     misc = 11.0;
-    if (ID == LEVEL_ThePits)       misc = 12.0;
-    if (ID == LEVEL_CrashDash)     misc = 13.0;
+    if (level == LEVEL_TurtleWoods)   misc = 9.0;
+    if (level == LEVEL_SnowGo)        misc = 10.0;
+    if (level == LEVEL_HangEight)     misc = 11.0;
+    if (level == LEVEL_ThePits)       misc = 12.0;
+    if (level == LEVEL_CrashDash)     misc = 13.0;
 
-    if (ID == LEVEL_SnowBiz)       misc = 14.0;
-    if (ID == LEVEL_AirCrash)      misc = 15.0;
-    if (ID == LEVEL_BearIt)        misc = 16.0;
-    if (ID == LEVEL_CrashCrush)    misc = 17.0;
-    if (ID == LEVEL_TheEelDeal)    misc = 18.0;
+    if (level == LEVEL_SnowBiz)       misc = 14.0;
+    if (level == LEVEL_AirCrash)      misc = 15.0;
+    if (level == LEVEL_BearIt)        misc = 16.0;
+    if (level == LEVEL_CrashCrush)    misc = 17.0;
+    if (level == LEVEL_TheEelDeal)    misc = 18.0;
 
-    if (ID == LEVEL_PlantFood)     misc = 19.0;
-    if (ID == LEVEL_SewerOrLater)  misc = 20.0;
-    if (ID == LEVEL_BearDown)      misc = 21.0;
-    if (ID == LEVEL_RoadToRuin)    misc = 22.0;
-    if (ID == LEVEL_Unbearable)    misc = 23.0;
+    if (level == LEVEL_PlantFood)     misc = 19.0;
+    if (level == LEVEL_SewerOrLater)  misc = 20.0;
+    if (level == LEVEL_BearDown)      misc = 21.0;
+    if (level == LEVEL_RoadToRuin)    misc = 22.0;
+    if (level == LEVEL_Unbearable)    misc = 23.0;
 
-    if (ID == LEVEL_HanginOut)     misc = 24.0;
-    if (ID == LEVEL_DigginIt)      misc = 25.0;
-    if (ID == LEVEL_ColdHardCrash) misc = 26.0;
-    if (ID == LEVEL_Ruination)     misc = 27.0;
-    if (ID == LEVEL_BeeHaving)     misc = 28.0;
+    if (level == LEVEL_HanginOut)     misc = 24.0;
+    if (level == LEVEL_DigginIt)      misc = 25.0;
+    if (level == LEVEL_ColdHardCrash) misc = 26.0;
+    if (level == LEVEL_Ruination)     misc = 27.0;
+    if (level == LEVEL_BeeHaving)     misc = 28.0;
 
-    if (ID == LEVEL_PistonItAway)  misc = 29.0;
-    if (ID == LEVEL_RockIt)        misc = 30.0;
-    if (ID == LEVEL_NightFight)    misc = 31.0;
-    if (ID == LEVEL_PackAttack)    misc = 32.0;
-    if (ID == LEVEL_SpacedOut)     misc = 33.0;
+    if (level == LEVEL_PistonItAway)  misc = 29.0;
+    if (level == LEVEL_RockIt)        misc = 30.0;
+    if (level == LEVEL_NightFight)    misc = 31.0;
+    if (level == LEVEL_PackAttack)    misc = 32.0;
+    if (level == LEVEL_SpacedOut)     misc = 33.0;
 
-    if (ID == LEVEL_TotallyBear)   misc = 34.0;
-    if (ID == LEVEL_TotallyFly)    misc = 35.0;
+    if (level == LEVEL_TotallyBear)   misc = 34.0;
+    if (level == LEVEL_TotallyFly)    misc = 35.0;
 
-    if (ID == LEVEL_BossRipperRoo) misc = 36.0;
-    if (ID == LEVEL_BossKimodo)    misc = 37.0;
-    if (ID == LEVEL_BossTazTiger)  misc = 38.0;
-    if (ID == LEVEL_BossNGin)      misc = 39.0;
-    if (ID == LEVEL_BossCortex)    misc = 40.0;
+    if (level == LEVEL_BossRipperRoo) misc = 36.0;
+    if (level == LEVEL_BossKimodo)    misc = 37.0;
+    if (level == LEVEL_BossTazTiger)  misc = 38.0;
+    if (level == LEVEL_BossNGin)      misc = 39.0;
+    if (level == LEVEL_BossCortex)    misc = 40.0;
 }
 
 expr GER = 3.0
